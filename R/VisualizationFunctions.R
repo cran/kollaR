@@ -80,7 +80,7 @@ filt_plot_temporal <- function(data_in, plot.window = c(NA,NA), var1= "x.raw", v
 #' @return a ggplot of raw and fixated values plotted on the y axis and sample number on the x axis
 
 filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.columns = c("x.raw", "y.raw"), filt.columns =c("x", "y"), fixation.radius = 40, xres =
-                         1920, yres = 1080, verbose = TRUE){
+                           1920, yres = 1080, verbose = TRUE){
 
 
   #No samples selected. Plot a default interval in the data
@@ -96,10 +96,12 @@ filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.co
     plot.window[2] <- raw.data$timestamp[round(plot.window[2]*dim(raw.data)[1])]}
 
 
-  #Select raw data to plot
-  p1 <- which(raw.data$timestamp>plot.window[1])[1]
-  p2 <- tail(which(raw.data$timestamp<plot.window[2]),1)
-  raw.data <- raw.data[p1:p2,]
+
+  w <- which(raw.data$timestamp> plot.window[1] & raw.data$timestamp<= plot.window[2])
+  if (length(w) == 0) {
+    warning("No gaze data found within the specified time range.")
+  }
+  raw.data <- raw.data[w,]
 
   # Add sample numbers to the data frame
   raw.data$sample <- seq(1, dim(raw.data)[1])
@@ -119,21 +121,21 @@ filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.co
   filtered.data <- filtered.data[w,]
   #To plot multiple fixation filters, create a label with both threshold and name of filter
   filtered.data$fixation.filter <- paste0(filtered.data$fixation.filter, "_", filtered.data$threshold)
+  filtered.data$radius <- fixation.radius
 
 
-  g <- ggplot(data = raw.data) + geom_circle(data = filtered.data, aes(x0 = .data$x, y0 = .data$y, r = .data$fixation.radius, fill = .data$fixation.filter, group = .data$fixation.filter))+
+  g <- ggplot(data = raw.data) + geom_circle(data = filtered.data, aes(x0 = .data$x, y0 = .data$y, r = .data$radius, fill = .data$fixation.filter, group = .data$fixation.filter))+
     xlim(c(1,xres))+ylim(c(1, yres))+
-    coord_fixed()+geom_point(aes(x = .data$raw.x, y = .data$raw.y, fill = "Unfilt", group = "Unfilt"), size = 0.5) +
+    geom_point(aes(x = .data$raw.x, y = .data$raw.y, fill = "Unfilt", group = "Unfilt"), size = 0.5) +
     scale_fill_discrete(name = "Filter")+ylab("Gaze postition X")+xlab("Gaze position Y")+facet_wrap(vars(.data$fixation.filter))+
     theme(text = element_text(size = 15))
 
   if (verbose){
-  suppressWarnings(
-    print(g)
-  )}
+    suppressWarnings(
+      print(g)
+    )}
   return(g)
 }
-
 
 
 #' Plot fixations in 2D space overlaied on a stimulus image
