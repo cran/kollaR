@@ -187,6 +187,20 @@ draw_aois <- function(image.path, reverse.y.axis = FALSE) {
       if (length(relayout_data$shapes)>0) { #Some new AOIs are saved. Save a complete list
         aois <- as.data.frame(relayout_data$shapes)
         aois <- aois[,9:13]
+
+
+        #Make sure that coordinates are stored with reference to their position, not to when a change was detected.
+        x0 <- apply(select(aois, x0,x1),1,min)
+        x1 <- apply(select(aois, x0,x1),1,max)
+        y0 <- apply(select(aois, y0,y1),1,min)
+        y1 <- apply(select(aois, y0,y1),1,max)
+
+        aois$x0 <- round(x0)
+        aois$x1 <- round(x1)
+        aois$y0 <- round(y0)
+        aois$y1 <- round(y1)
+
+
         #Reverse y-axis to fit common eye tracker coordinate systems if requested
         if (reverse.y.axis == TRUE) {
           aois$y0 <- img_height - aois$y0
@@ -205,6 +219,19 @@ draw_aois <- function(image.path, reverse.y.axis = FALSE) {
         aois$y0[shape.nr] <- updates[[2]]
         aois$x1[shape.nr] <- updates[[3]]
         aois$x0[shape.nr] <- updates[[4]]
+
+
+        #Make sure that coordinates are stored with reference to their position, not to when a change was detected.
+        x0 <- apply(select(aois, x0,x1),1,min)
+        x1 <- apply(select(aois, x0,x1),1,max)
+        y0 <- apply(select(aois, y0,y1),1,min)
+        y1 <- apply(select(aois, y0,y1),1,max)
+
+        aois$x0 <- round(x0)
+        aois$x1 <- round(x1)
+        aois$y0 <- round(y0)
+        aois$y1 <- round(y1)
+
 
         if (reverse.y.axis == TRUE) { #Reverse the y axis after update
           aois$y0[shape.nr]  <- img_height - aois$y0[shape.nr]
