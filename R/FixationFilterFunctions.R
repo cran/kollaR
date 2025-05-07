@@ -915,7 +915,7 @@ algorithm_adaptive <- function(gaze, min.fixation.duration = 40, min.saccade.dur
 
   onset.threshold <- t[["onset.threshold"]]
   peak.threshold <- t[["peak.threshold"]]
-  velocity.vect <- t[["velocity"]]
+  velocity.vect <- data.frame(velocity = t[["velocity"]])
 
   one.sample <- median(diff(gaze$timestamp),na.rm =T)
 

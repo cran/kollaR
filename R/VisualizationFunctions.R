@@ -176,7 +176,7 @@ fixation_plot_2d <- function(raw.data,fixation.data, plot.window = c(NA, NA), ra
   g <- ggplot(data = raw.data) + geom_circle(data = fixation.data, aes(x0 = .data[[fixation.col.x]], y0 = .data[[fixation.col.y]], r = .data$radius, fill = .data$fixation.algorithm, group = .data$fixation.algorithm))+
     xlim(c(xmin,xres))+ylim(c(ymin, yres))+
     geom_point(aes(x = .data$raw.x, y = .data$raw.y, fill = "Samples", group = "Samples"), size = 0.5) +
-    scale_fill_discrete(name = "Data")+ylab("Gaze postition X")+xlab("Gaze position Y")+
+    scale_fill_discrete(name = "Data")+ylab("Gaze postition Y")+xlab("Gaze position X")+
     theme(text = element_text(size = font.size))
 
 

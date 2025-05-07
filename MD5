@@ -1,9 +1,9 @@
-3342eba6ee393e68d2987eb3f76a0846 *DESCRIPTION
+a8f20b24a86837e4b612aef4d3d1bffc *DESCRIPTION
 4b6e1047d31fe068234b4bbf5409f155 *NAMESPACE
 cf4ed1138592e2aaf7fde40a80fa51e6 *R/AnalysisFunctions.R
-167546bc2f38aef5b6f6ba1a54aa3e2e *R/FixationFilterFunctions.R
+2b875c347270b16b6c2beb0c5b8a994e *R/FixationFilterFunctions.R
 5628addd9057479880a22999be77b864 *R/PreprocessingFunctions.R
-644c114b1fc413ff57d7f0ddf48750b8 *R/VisualizationFunctions.R
+39f6260f4eb567a1692c7d9c93a6bba7 *R/VisualizationFunctions.R
 1bdcbd877db4fb5fafdc940810e3ab61 *R/data_documentation.R
 b943a1546a1e17be4eea235ec7b4616b *build/partial.rdb
 de3b147dc2107d835ff9eb62a8ed7034 *data/example_data.RData

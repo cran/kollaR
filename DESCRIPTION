@@ -2,7 +2,7 @@ Package: kollaR
 Type: Package
 Title: Event Classification, Visualization and Analysis of Eye Tracking
         Data
-Version: 1.1.0
+Version: 1.1.1
 Authors@R: person(given = c("Johan", "Lundin"),
                   family = "Kleberg",
                   role = c("aut", "cre"),
@@ -21,9 +21,9 @@ Imports: dplyr, ggplot2, zoo, ggforce, tidyr, ggpubr, jpeg, patchwork,
         shiny, plotly, base64enc, magick, scales
 RoxygenNote: 7.3.1
 NeedsCompilation: no
-Packaged: 2025-05-07 09:17:40 UTC; jolu7095
+Packaged: 2025-05-07 16:47:14 UTC; jolu7095
 Author: Johan Lundin Kleberg [aut, cre]
 Maintainer: Johan Lundin Kleberg <johan.lundin.kleberg@su.se>
 Depends: R (>= 3.5.0)
 Repository: CRAN
-Date/Publication: 2025-05-07 12:30:05 UTC
+Date/Publication: 2025-05-07 17:10:02 UTC
