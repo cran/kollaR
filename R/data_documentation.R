@@ -1,6 +1,6 @@
 #' Unprocessed sample-by-sample example data
 #'
-#' This dataset contains data from 3 individuals during a free viewing tasks before pre-processing. Data were
+#' This dataset contains data from 1 individual during a free viewing tasks before pre-processing. Data were
 #' recorded at 1200 Hz using a Tobii Pro Spectrum eye tracker
 #'
 #' @format A data frame
@@ -27,6 +27,8 @@
 #'   \item{timestamp}{timestamp in ms recorded by the eye tracker}
 #'   \item{x.raw}{gaze position x}
 #'   \item{y.raw}{gaze position y}
+#'   \item{x.unprocessed}{copy of gaze position x before preprocessing}
+#'   \item{y.unprocessed}{copy of gaze position y before preprocessing}
 #'   \item{timestamp.t}{"'Theoretical timestamp' for comparison."}
 #'   \item{sample}{sample nr in recording}
 
@@ -60,6 +62,7 @@
 #'   \item{amplitude}{amplitude of saccade in degrees}
 #'   \item{peak.velocity}{peak velocity of saccade}
 #'   \item{velocity.profile}{velocity profile}
+#'   \item{missing.samples}{proportion of missing samples}
 #'   \item{id}{participant number}
 #'   }
 #' @source The dataset was stored in the package at 'data/example_data.RData'
@@ -73,14 +76,16 @@
 #'
 #' @format A data frame
 #' \describe{
-#'   \item{x}{fixation filtered gaze position x}
-#'   \item{y}{fixation filtered gaze position y}
+#'   \item{x}{fixation position x}
+#'   \item{y}{fixation position y}
 #'   \item{duration}{duration of fixation in milliseconds}
 #'   \item{onset}{onset of fixation in milliseconds}
 #'   \item{offset}{offset of fixation in milliseconds}
-#'   \item{rmsd}{Root mean square deviation of included samples from the centroid of the fixation}
-#'   \item{fixation.filter}{Name of the fixation filter algorithm }
-#'   \item{threshold}{Threshold setting for the fixation filter algorithm}
+#'   \item{rmsd}{Sample-to-sample root mean square deviation of all samples}
+#'   \item{rms.from.center}{Root means square deviation of all included samples from the centroid of the fixation}
+#'   \item{missing.samples}{proportion of missing samples}
+#'   \item{fixation.algorithm}{Name of the fixation filter algorithm }
+#'   \item{threshold}{Threshold setting for the fixation classification algorithm}
 #'   \item{id}{Participant id}}
 #' @source The dataset was stored in the package at 'data/example_data.RData'
 "sample.data.fixations"
@@ -93,38 +98,36 @@
 #'
 #' @format A data frame
 #' \describe{
-#'   \item{x}{fixation filtered gaze position x}
-#'   \item{y}{fixation filtered gaze position y}
+#'   \item{x}{fixation position x}
+#'   \item{y}{fixation position y}
 #'   \item{duration}{duration of fixation in milliseconds}
 #'   \item{onset}{onset of fixation in milliseconds}
 #'   \item{offset}{offset of fixation in milliseconds}
-#'   \item{rmsd}{Root mean square deviation of included samples from the centroid of the fixation}
-#'   \item{fixation.filter}{Name of the fixation filter algorithm }
-#'   \item{threshold}{Threshold setting for the fixation filter algorithm}
+#'   \item{rmsd}{Sample-to-sample root mean square deviation of all samples}
+#'   \item{rms.from.center}{Root means square deviation of all included samples from the centroid of the fixation}
+#'   \item{missing.samples}{proportion of missing samples}
+#'   \item{fixation.algorithm}{Name of the fixation filter algorithm }
+#'   \item{threshold}{Threshold setting for the fixation classification algorithm}
 #'   \item{id}{Participant id}
 #'   }
 #' @source The dataset was stored in the package at 'data/example_data.RData'
 "sample.data.fixation1"
 
 
-
-#' Fixation-filtered sample-by-sample example data
+#' Sample-to-sample raw and fixation classified data from 1 individual
 #'
-#' This dataset contains data from 1 individuals during a free viewing tasks after pre-processing. Data were
-#' recorded at 1200 Hz using a Tobii Pro Spectrum eye tracker
+#' This dataset contains sample-to-sample data from 1 individuals during a free viewing tasks. Data were
+#' recorded at 1200 Hz using a Tobii Pro Spectrum eye tracker. Fixations were classified with the I-VT algorithm with a velocity threshold set to 30 degrees/seconds
+#' and default settings in the function algorithm_ivt
 #'
 #' @format A data frame
 #' \describe{
-#'   \item{timestamp}{timestamp in ms recorded by the eye tracker}
-#'   \item{x.raw}{unfiltered gaze position x}
-#'   \item{y.raw}{unfiltered gaze position y}
-#'   \item{x}{fixation filtered gaze position x}
-#'   \item{y}{fixation filtered gaze position y}
-
-
-
-#' }
-#'
+#'   \item{x}{fixation position x}
+#'   \item{y}{fixation position y}
+#'   \item{x.raw}{fixation position x}
+#'   \item{y.raw}{fixation position y}
+#'   \item{timestamp}{timestamp in milliseconds}
+#'   }
 #' @source The dataset was stored in the package at 'data/example_data.RData'
-"sample.data.filtered"
+"sample.data.classified"
 

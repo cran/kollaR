@@ -17,5 +17,5 @@ find.transition.weights(data_in, window.step.size = 6, windowsize)
 transition weights.
 }
 \description{
-This function is used internally by the function cluster2m
+This function is used internally by the function algorithm_i2mc
 }

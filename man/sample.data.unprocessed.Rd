@@ -20,7 +20,7 @@ The dataset was stored in the package at 'data/example_data.RData'
 sample.data.unprocessed
 }
 \description{
-This dataset contains data from 3 individuals during a free viewing tasks before pre-processing. Data were
+This dataset contains data from 1 individual during a free viewing tasks before pre-processing. Data were
 recorded at 1200 Hz using a Tobii Pro Spectrum eye tracker
 }
 \keyword{datasets}

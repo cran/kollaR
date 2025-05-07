@@ -53,7 +53,7 @@ background.images <- data.frame(
 
 \item{save.gif}{If TRUE, save the created .gif file under the name specified in the filename parameter}
 
-\item{gif.dpi}{Resolution in dpi if .gif is saved. Lower values give smaller files.}
+\item{gif.dpi}{Resolution in dpi if .gif is saved. Lower values give smaller files but the resoulution will be poorer.}
 
 \item{gazepoint.size}{Size of marker representing fixation coordinates.}
 

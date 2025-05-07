@@ -11,6 +11,8 @@ A data frame
   \item{timestamp}{timestamp in ms recorded by the eye tracker}
   \item{x.raw}{gaze position x}
   \item{y.raw}{gaze position y}
+  \item{x.unprocessed}{copy of gaze position x before preprocessing}
+  \item{y.unprocessed}{copy of gaze position y before preprocessing}
   \item{timestamp.t}{"'Theoretical timestamp' for comparison."}
   \item{sample}{sample nr in recording}
 }

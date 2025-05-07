@@ -1,19 +1,21 @@
-#' Plot fixation filtered vs. raw gaze coordinates
+#' Plot fixation classified vs. raw gaze coordinates
 #' @description This function plots and returns a ggplot2 figure showing two time series of gaze coordinates plotted against time.
-#' The interval to plot can be defined as a proportion of the data frame or by sample numbers. Use this function to plot data before and after processing or filtering
-#' to examine their effects. For example, unprocessed x or y coordinates can be plotted against x and y coordinates following pre-processing and/or a fixation filter.
+#' The interval to plot can be defined as a proportion of the data frame, by timestamps, or by sample numbers. Use this function to plot data before and after processing or filtering
+#' to examine their effects. For example, unprocessed x or y coordinates can be plotted against x and y coordinates following pre-processing and/or event detection with a
+#' fixation detection algorithm
 #' Either the x or the y vector is plotted
 #' @param data_in gaze matrix which must include columns for filtered and unfiltered data as specified in the var1 and var2 paramters
 #' @param plot.window vector defining the time window to plot. If left empty, the 50-65% interval of the data are plotted. If the submitted values are
-#' <0, they are assumed to be proportions, e.g., \code{plot.window = c(0.3,0.35)} plots the 30-35% interval of the data. Numbers >1 are assumed to refer to sample order
-#' in the data
+#' <0, they are assumed to be proportions, e.g., \code{plot.window = c(0.3,0.35)} plots the 30-35% interval of the data. Numbers >1 are assumed to refer to time stamps
+#' in the data found in the variable 'timestamp'
 #' @param var1 Name of the first variable to plot. Default "x.raw"
 #' @param var2 Name of the second variable to plot (overlayed on var1) Default: "x"
+#' @param x.index.var Name of the variable to plot on the X axis, for example timestamp or sample index. If the default setting is used, gaze coordinates are plotted against
+#' sample number in the selected data interval.
 #' @param verbose If TRUE, print the resulting plot
-#' @examples new.plot <- filt_plot_temporal(sample.data.filtered, plot.window = c(1000, 2000))
+#' @examples new.plot <- fixation_plot_temporal(sample.data.classified, plot.window = c(1000, 2000))
 #' @return a ggplot with gaze coordinates plotted on the y axis and sample number on the x axis
-
-filt_plot_temporal <- function(data_in, plot.window = c(NA,NA), var1= "x.raw", var2 ="x", verbose = TRUE){
+fixation_plot_temporal <- function(data_in, plot.window = c(NA,NA), var1= "x.raw", var2 ="x", x.index.var = "sample.index", verbose = TRUE){
 
   #No samples selected. Plot a default interval in the data
   if (sum(is.na(plot.window))>0) {
@@ -22,65 +24,112 @@ filt_plot_temporal <- function(data_in, plot.window = c(NA,NA), var1= "x.raw", v
     #Select the interval to plot.
     p1 <- round(default.interval[1]*dim(data_in)[1])
     p2 <- round(default.interval[2]*dim(data_in)[1])
-  } else if (plot.window[1] > 1) {        #Plot a user specified interval in samples
-    p1 <- plot.window[1]
-    p2 <- plot.window[2]
+  } else if (plot.window[1] <=1 & plot.window[2] <=1) { #Plot a user specified interval defined as proportion of the recording
+    message("Plotting a selected proportion of the recording")
 
-  } else if (plot.window[1] <=1) { #Plot a user specified interval defined as proportion of the recording
     p1 <- round(plot.window[1]*dim(data_in)[1])
     p2 <- round(plot.window[2]*dim(data_in)[1])
+
+  } else {
+    message("Plotting interval defined by timestamps")
+
+
+    p1 <- which(data_in$timestamp >= plot.window[1])[1]
+    p2 <- which(data_in$timestamp <= plot.window[2])
+
+    p2 <- p2[length(p2)]
+
 
   }
 
 
+
+
+  if (length(p2) == 0 | length(p1) == 0) {
+    warning("No data found in the selected interval")
+  }
   data_in <- data_in[p1:p2,]
 
+
+
   # Add sample numbers to the data frame
-  data_in$index <- seq(1, dim(data_in)[1])
+  data_in$sample.index <- seq(1, dim(data_in)[1])
 
 
   #Create a color map that matches the input variables
   color_map <- setNames(c("black", "red"), c(var1, var2))
 
 
+
   g <- ggplot(data = data_in) +
-    geom_line(aes(x = index, y = .data[[var1]], color = var1), linewidth = 1.7) +
-    geom_line(aes(x = index, y = .data[[var2]], color = var2), linewidth = 1) +
+    geom_line(aes(x = .data[[x.index.var]], y = .data[[var1]], color = var1), linewidth = 1.7) +
+    geom_line(aes(x = .data[[x.index.var]], y = .data[[var2]], color = var2), linewidth = 1) +
     scale_color_manual(values = color_map, name = "Data") +
     ylab("Gaze position") +
-    xlab("Sample") +
+    xlab(x.index.var) +
     theme(text = element_text(size = 15))
 
- if (verbose){
-  suppressWarnings(
-    print(g))}
+  if (verbose){
+    suppressWarnings(
+      print(g))}
 
   return(g)
 
 }
 
+#' Plot fixation filtered vs. raw gaze coordinates. This function will be replaced by fixation_plot_temporal in future releases. It is currently a wrapper around
+#' fixation_plot_temporal accepting the same arguments.
+#' @description This function plots and returns a ggplot2 figure showing two time series of gaze coordinates plotted against time.
+#' The interval to plot can be defined as a proportion of the data frame, by timestamps, or by sample numbers. Use this function to plot data before and after processing or filtering
+#' to examine their effects. For example, unprocessed x or y coordinates can be plotted against x and y coordinates following pre-processing and/or event detection with a
+#' fixation detection algorithm
+#' Either the x or the y vector is plotted
+#' @param data_in gaze matrix which must include columns for filtered and unfiltered data as specified in the var1 and var2 paramters
+#' @param plot.window vector defining the time window to plot. If left empty, the 50-65% interval of the data are plotted. If the submitted values are
+#' <0, they are assumed to be proportions, e.g., \code{plot.window = c(0.3,0.35)} plots the 30-35% interval of the data. Numbers >1 are assumed to refer to time stamps
+#' in the data found in the variable 'timestamp'
+#' @param var1 Name of the first variable to plot. Default "x.raw"
+#' @param var2 Name of the second variable to plot (overlayed on var1) Default: "x"
+#' @param x.index.var Name of the variable to plot on the X axis, for example timestamp or sample index. If the default setting is used, gaze coordinates are plotted against
+#' sample number in the selected data interval.
+#' @param verbose If TRUE, print the resulting plot
+#' @examples new.plot <- filt_plot_temporal(sample.data.classified, plot.window = c(1000, 2000))
+#' @return a ggplot with gaze coordinates plotted on the y axis and sample number on the x axis
+filt_plot_temporal <- function(data_in, plot.window = c(NA,NA), var1= "x.raw", var2 ="x", x.index.var = "sample.index", verbose = TRUE){
+  output <- fixation_plot_temporal(data_in = data_in, plot.window = plot.window, var1 = var1, var2 = var2, x.index.var = x.index.var, verbose = verbose)
+  message('This function will be replaced by fixation_plot_temporal in future versions. The two functions prodcuce the same output.')
+  return(output)
+}
 
 
-
-#' Plot fixation filtered vs. raw or unfiltered gaze coordinates in 2D space.
-#' @description This function plots and returns a ggplot2 figure showing fixation filtered and raw gaze coordinates plotted against time.
+#' Plot fixations vs. individual sample coordinates in 2D space.
+#' @description This function plots and returns a ggplot2 figure showing fixations and individual gaze coordinates plotted against time.
 #' The interval to plot can be defined as a proportion of the data frame or by sample numbers. This function uses one data.frame with fixations and one with sample-by-sample raw data
-#' @param raw.data gaze matrix which must include columns for filtered and unfiltered data as specified in the raw.columns parameter
-#' @param filtered.data Data frame with fixation data which must include columns for filtered x and y data as specified in the raw.columns parameter as well as the
+#' @param raw.data gaze matrix which must include columns for x and y coordinates in the and raw data (single samples) as specified in the raw.columns parameter
+#' @param fixation.data Data frame with fixation data which must include columns for fixation x and y coordinates as specified in the fixation.columns parameter as well as the
 #' variable onset which indicates the onset of the fixation. Make sure the onset varables match the timing in the raw.data df
 #' @param plot.window vector defining the time window to plot. If left empty, the 50-65% interval of the data are plotted. If the submitted values are
 #' <0, they are assumed to be proportions, e.g., \code{plot.window = c(0.3,0.35)} plots the 30-35 percent of max.length interval of the data. Numbers >1 are assumed to refer to sample order
 #' in the data
 #' @param raw.columns Names of variable containing raw data. Default x.raw and y.raw
-#' @param filt.columns Names of variable containing filtered data. Default x and y
-#' @param xres horizontal resolution of the screen or area to plot on. Default 1920
-#' @param yres vertical resolution of the screen or area to plot on. Default 1080
+#' @param fixation.columns Names of variable containing filtered data. Default x and y
+#' @param xres Maximum of the X axis (horizontal resolution of the screen or area to plot on). Default 1920
+#' @param yres Maximum of the Y axis (vertical resolution of the screen or area to plot on). Default 1080
+#' @param xmin Minimum of the X axis (default 1).
+#' @param ymin Minimum of the Y axis (default 1)
+#' @param order.vertical If TRUE, stack subplots on top of each other in a single column
 #' @param fixation.radius Radius of circles showing fixations.
+#' @param font.size Text font size
 #' @param verbose if TRUE, print the resulting plot
 #' @return a ggplot of raw and fixated values plotted on the y axis and sample number on the x axis
+fixation_plot_2d <- function(raw.data,fixation.data, plot.window = c(NA, NA), raw.columns = c("x.raw", "y.raw"), fixation.columns =c("x", "y"), fixation.radius = 40, xres =
+                            1920, yres = 1080, xmin = 1, ymin = 1, order.vertical = FALSE, font.size = 15, verbose = TRUE){
 
-filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.columns = c("x.raw", "y.raw"), filt.columns =c("x", "y"), fixation.radius = 40, xres =
-                           1920, yres = 1080, verbose = TRUE){
+
+
+  #Names of columns where X and Ys of fixations are found
+  fixation.col.x <- fixation.columns[1]
+  fixation.col.y <- fixation.columns[2]
 
 
   #No samples selected. Plot a default interval in the data
@@ -114,21 +163,30 @@ filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.co
   raw.data$raw.x <- raw.data[[raw.columns[1]]]
   raw.data$raw.y <- raw.data[[raw.columns[2]]]
   raw.data$radius <- fixation.radius
-  # raw.data$fixation.filter <- "raw"
+  # raw.data$fixation.algorithm <- "raw"
 
   #Select the filtered data
-  w <- which(filtered.data$onset >= plot.window[1] & filtered.data$onset <= plot.window[2])
-  filtered.data <- filtered.data[w,]
+  w <- which(fixation.data$onset >= plot.window[1] & fixation.data$onset <= plot.window[2])
+  fixation.data <- fixation.data[w,]
   #To plot multiple fixation filters, create a label with both threshold and name of filter
-  filtered.data$fixation.filter <- paste0(filtered.data$fixation.filter, "_", filtered.data$threshold)
-  filtered.data$radius <- fixation.radius
+  fixation.data$fixation.algorithm <- paste0(fixation.data$fixation.algorithm, "_", fixation.data$threshold)
+  fixation.data$radius <- fixation.radius
 
 
-  g <- ggplot(data = raw.data) + geom_circle(data = filtered.data, aes(x0 = .data$x, y0 = .data$y, r = .data$radius, fill = .data$fixation.filter, group = .data$fixation.filter))+
-    xlim(c(1,xres))+ylim(c(1, yres))+
-    geom_point(aes(x = .data$raw.x, y = .data$raw.y, fill = "Unfilt", group = "Unfilt"), size = 0.5) +
-    scale_fill_discrete(name = "Filter")+ylab("Gaze postition X")+xlab("Gaze position Y")+facet_wrap(vars(.data$fixation.filter))+
-    theme(text = element_text(size = 15))
+  g <- ggplot(data = raw.data) + geom_circle(data = fixation.data, aes(x0 = .data[[fixation.col.x]], y0 = .data[[fixation.col.y]], r = .data$radius, fill = .data$fixation.algorithm, group = .data$fixation.algorithm))+
+    xlim(c(xmin,xres))+ylim(c(ymin, yres))+
+    geom_point(aes(x = .data$raw.x, y = .data$raw.y, fill = "Samples", group = "Samples"), size = 0.5) +
+    scale_fill_discrete(name = "Data")+ylab("Gaze postition X")+xlab("Gaze position Y")+
+    theme(text = element_text(size = font.size))
+
+
+  if (order.vertical == TRUE) {
+    g <- g +facet_wrap(vars(.data$fixation.algorithm), ncol = 1)} else if (order.vertical == FALSE){
+      g <-g +facet_wrap(vars(.data$fixation.algorithm))
+    }
+
+
+
 
   if (verbose){
     suppressWarnings(
@@ -136,6 +194,39 @@ filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.co
     )}
   return(g)
 }
+
+
+
+#' Plot fixations vs. individual sample coordinates in 2D space. In the current release, filt_plot_2d is a
+#' wrapper around fixation_plot_2d which accepts the same arguments.
+#' @description This function plots and returns a ggplot2 figure showing fixations and individual gaze coordinates plotted against time.
+#' The interval to plot can be defined as a proportion of the data frame or by sample numbers. This function uses one data.frame with fixations and one with sample-by-sample raw data
+#' @param raw.data gaze matrix which must include columns for x and y coordinates in the and raw data (single samples) as specified in the raw.columns parameter
+#' @param fixation.data Data frame with fixation data which must include columns for fixation x and y coordinates as specified in the fixation.columns parameter as well as the
+#' variable onset which indicates the onset of the fixation. Make sure the onset varables match the timing in the raw.data df
+#' @param plot.window vector defining the time window to plot. If left empty, the 50-65% interval of the data are plotted. If the submitted values are
+#' <0, they are assumed to be proportions, e.g., \code{plot.window = c(0.3,0.35)} plots the 30-35 percent of max.length interval of the data. Numbers >1 are assumed to refer to sample order
+#' in the data
+#' @param raw.columns Names of variable containing raw data. Default x.raw and y.raw
+#' @param fixation.columns Names of variable containing filtered data. Default x and y
+#' @param xres horizontal resolution of the screen or area to plot on. Default 1920
+#' @param yres vertical resolution of the screen or area to plot on. Default 1080
+#' @param fixation.radius Radius of circles showing fixations.
+#' @param order.vertical If TRUE, stack subplots on top of each other in a single column
+#' @param verbose if TRUE, print the resulting plot
+#' @return a ggplot of raw and fixated values plotted on the y axis and sample number on the x axis
+filt_plot_2d <- function(raw.data,fixation.data, plot.window = c(NA, NA), raw.columns = c("x.raw", "y.raw"), fixation.columns =c("x", "y"), fixation.radius = 40, xres =
+                               1920, yres = 1080, order.vertical = FALSE, verbose = TRUE){
+
+ message("This function will be replaced by fixation_plot_2d in future versions")
+
+ output <- fixation_plot_2d(raw.data, fixation.data, plot.window = plot.window, raw.columns = raw.columns, fixation.columns = fixation.columns,
+                            fixation.radius = fixation.radius, xres = xres, yres = yres, verbose = verbose)
+
+ return(output)
+
+}
+
 
 
 #' Plot fixations in 2D space overlaied on a stimulus image
@@ -168,7 +259,6 @@ filt_plot_2d <- function(raw.data,filtered.data, plot.window = c(NA, NA), raw.co
 #' @param id_color_map A ggplot color map specifying a color to plot for each id. ids should match the variable id'in the gazedata matrix. Set to NA to assign values automatically.
 #' @return a ggplot of raw and fixated values plotted on the y axis and sample number on the x axis
 
-
 static_plot <- function(gazedata, xres = 1920, yres = 1080, plot.onset, plot.offset, background.images = NA, show.legend = TRUE, group.by = NA,
                         gazepoint.size = 4, id_color_map =NA, connect.lines = TRUE, verbose = TRUE) {
 
@@ -193,7 +283,7 @@ static_plot <- function(gazedata, xres = 1920, yres = 1080, plot.onset, plot.off
     plot.aes <- aes(x = .data$x, y = .data$y, group = .data$id, colour = .data$id)
 
     #Create an empty white image
-    background <- ggplot()+xlim(1,xres) +ylim(yres,1)+ coord_fixed()+
+    background <- ggplot()+xlim(1,xres) +ylim(yres,1)+ coord_fixed(expand = FALSE)+
       theme_void()
 
     # Add  smulus images to background
@@ -206,19 +296,19 @@ static_plot <- function(gazedata, xres = 1920, yres = 1080, plot.onset, plot.off
     #Save the background as a temporary file with pixel measures corresponding to screen size
     t <- tempdir()
     temp.path <- paste0(t, "\\background_temp.jpg")
-    ggplot2::ggsave(temp.path, width = xres, height = yres, units = "px")
+    ggplot2::ggsave(temp.path, width = xres, height = yres, units = "px", limitsize = FALSE, dpi =1)
     im <- jpeg::readJPEG(temp.path)
 
     #Plot on the stimulus background
     suppressMessages(
-    g <- ggplot(data = gazedata, aes(x = .data$x, y = .data$y, group = .data$id, colour = .data$id))+xlim(1,xres) +ylim(yres,1)+ coord_fixed() + # Use custom colors
+    g <- ggplot(data = gazedata, aes(x = .data$x, y = .data$y, group = .data$id, colour = .data$id))+xlim(1,xres) +ylim(yres,1)+ coord_fixed(expand = FALSE) + # Use custom colors
       ggpubr::background_image(im)+theme(panel.background = element_rect(fill = "white", color = "white"))+geom_point(size =gazepoint.size, show.legend = show.legend)
     )
 
   } else {
     #Plot without background if no images are passed
     suppressMessages(
-    g <- ggplot(data = gazedata, aes(x = .data$x, y = .data$y, group = .data$id, colour = .data$id))+xlim(1,xres) +ylim(yres,1)+ coord_fixed() + # Use custom colors
+    g <- ggplot(data = gazedata, aes(x = .data$x, y = .data$y, group = .data$id, colour = .data$id))+xlim(1,xres) +ylim(yres,1)+ coord_fixed(expand = FALSE) + # Use custom colors
       theme(panel.background = element_rect(fill = "white", color = "white"))+geom_point(size =gazepoint.size, show.legend = show.legend)
     )
 
@@ -319,7 +409,7 @@ plot_velocity_profiles <- function(saccades, onset =NA, offset= NA, verbose = TR
 #' @param plot.offset Offset of the interval in the corresponding to the variable onset in the input data frame gazedata to plot in the same unit, typically milliseconds
 #' @param save.gif If TRUE, save the created .gif file under the name specified in the filename parameter
 #' @param filename Name of path where the .gif is saved
-#' @param gif.dpi Resolution in dpi if .gif is saved. Lower values give smaller files.
+#' @param gif.dpi Resolution in dpi if .gif is saved. Lower values give smaller files but the resoulution will be poorer.
 #' @param n.loops Specify the number of times to play the plotted sequence. Default is 1. If n.loops is 0, the .gif will play in an eternal loop
 #' @param gazepoint.size Size of marker representing fixation coordinates.
 #' @param show.legend If TRUE, show values of the variable id in legend
@@ -541,7 +631,7 @@ plot_sample_velocity <- function(data_in, velocity.filter.ms =20, plot.window = 
 }
 
 
-#'Plot validity measures from one or more fixation detection algorithms
+#'Plot descriptives from one or more fixation detection algorithms
 #'@description
 #'
 #' This function visualizes validity measures of fixations detected with one or more fixation detection algorithms.
@@ -551,15 +641,16 @@ plot_sample_velocity <- function(data_in, velocity.filter.ms =20, plot.window = 
 #' If you want to use this function to compare more than one fixation detection algorithms, combine them using the function
 #' rbind in base R. For example, \code{rbind(my_data1[["fixations"]], my_data2[["fixations"]])} would generate a combined data frame with the
 #' fixations detected by two event classification procedures.
+#' This function will be replaced by 'plot_algorithm_results' in future versions.
 #'
 #' @param data_in Data frame with fixations to plot
-#' @param plot.variable Variable to plot. If left empty, RMSD of fixations are plotted. Alternatives are "rmsd", "duration", "missing.samples"
+#' @param plot.variable Variable to plot. If left empty, RMSD of subsent samples (precision) are plotted. Alternatives are "rmsd", "rms.from.center", "duration", "missing.samples"
 #' @return A ggplot with visualizations of the selected validity measure
 #' @examples
 #' plot_filter_results(data_in = sample.data.fixations, plot.variable = "rmsd")
 
 plot_filter_results <- function(data_in, plot.variable = "rmsd") {
-  data_in$algorithm <- paste0(data_in$fixation.filter, "_", data_in$threshold)
+  data_in$algorithm <- paste0(data_in$fixation.algorithm, "_", data_in$threshold)
   if (sum(grepl(plot.variable, names(data_in))) != 1){
     warning("The variable to plot must be present in the fixation data frame!")
   }
@@ -574,3 +665,113 @@ plot_filter_results <- function(data_in, plot.variable = "rmsd") {
 }
 
 
+#'Plot vdescriptives one or more fixation detection algorithms
+#'@description
+#'
+#' This function visualizes validity measures of fixations detected with one or more fixation detection algorithms.
+#' The function is tested for fixation data frames generated with kollaR event detection algorithms. By default, the function can plot
+#' Root Mean Square Deviations of subsequent samples within the detected fixations (precision), the RMSD from the fixation centroid, fixation duration and the proportion of missing raw samples.
+#' The output data is a ggplot which can be modified further outside the function.
+#' If you want to use this function to compare more than one fixation detection algorithms, combine them using the function
+#' rbind in base R. For example, \code{rbind(my_data1[["fixations"]], my_data2[["fixations"]])} would generate a combined data frame with the
+#' fixations detected by two event classification procedures.
+#'
+#' @param data_in Data frame with fixations to plot
+#' @param plot.variable Variable to plot. If left empty, RMSD of fixations are plotted. Alternatives are "rmsd", "duration", "missing.samples", "rms.from.center"
+#' @return A ggplot with visualizations of the selected validity measure
+#' @examples
+#' plot_algorithm_results(data_in = sample.data.fixations, plot.variable = "rmsd")
+
+plot_algorithm_results <- function(data_in, plot.variable = "rmsd") {
+  data_in$algorithm <- paste0(data_in$fixation.algorithm, "_", data_in$threshold)
+  if (sum(grepl(plot.variable, names(data_in))) != 1){
+    warning("The variable to plot must be present in the fixation data frame!")
+  }
+
+  names(data_in) <- gsub(plot.variable, "ms", names(data_in))
+  g <- ggplot(data = data_in, aes(x = .data$algorithm, y = .data$ms, fill = .data$algorithm, group = .data$algorithm))+
+    geom_jitter(width = 0.4, color = "black", fill = "black", alpha = 0.6, size = 0.6)+
+    geom_boxplot(width = 0.15, outliers = FALSE, alpha = 0.7) + theme_minimal()+theme(text = element_text(size = 15))+geom_violin(width = 0.6, fill = NA)+
+    ylab(plot.variable)
+
+  return(g)
+}
+
+
+#' Plot fixation classified vs. raw gaze coordinate time series
+#' @description This function plots and returns a ggplot2 figure showing time series of gaze coordinates plotted against time.
+#' The interval to plot must be specified in the same unit as the vaiable specified in the input variable x.index.var. By default, this
+#' variable is called timestamp. Use this function to compare the raw gaze coordinates to the output from one or more fixation classification algorithms.
+#' Either the X or the Y coordinates are plotted.
+#' If the variable specified in the parameter algorithm.name is present in the input data AND contains more than one unique category, you will get subplots for each category.
+#' For example, if the input data contains fixation and raw coordinates for data from the I-VT and I2MC algorithms, each will be plotted in a separate subplot. Note that the
+#' X index variable (time stamps or sample number) must be the same.
+#' @param data_in gaze matrix which must include columns for filtered and unfiltered data as specified in the var1 and var2 paramters
+#' @param plot.window vector defining the time window to plot. Correxponding values must be found in the variable specified in the parameter x.index.var (default: timestamp)
+#' in the data found in the variable 'timestamp'
+#' @param var1 Name of the first variable to plot. Default "x.raw"
+#' @param var2 Name of the second variable to plot (overlayed on var1) Default: "x"
+#' @param x.index.var Name of the variable to plot on the X axis, for example timestamp or sample index. If the default setting is used, gaze coordinates are plotted against
+#' timestamp (stored in a variable with that name). It can be replaced with any other numerical variable present in the data.
+#' @param ylim Limits of y axis. If NA, the Y axis covers the range in the input data, otherwise it's restricted to the values in ylim. ylim = c(0, 1920) sets
+#' the minimum and maximum values on the Y acus to 0 and 1920 respectively
+#' @param xres Maximum of the X axis (horizontal resolution of the screen or area to plot on). Default 1920
+#' @param yres Maximum of the Y axis (vertical resolution of the screen or area to plot on). Default 1080
+#' @param algorithm.name Name of the fixation algorithm/or preprocessing procedure used for this data. The default is "fixation.algorithm" which is automatically stored in the output of kollaR
+#' fixation classification algorithm. It can be replaced by another variable name. If different categories exist, each will be plotted in a separate subplot.
+#' @param font.size Font size
+#' @param verbose If TRUE, print the resulting plot
+#' @examples new.plot <- fixation_plot_ts (sample.data.classified, plot.window = c(1000, 2000))
+#' @return a ggplot with gaze coordinates plotted on the y axis and sample number on the x axis
+
+fixation_plot_ts <- function(data_in, plot.window = c(NA, NA), x.index.var ="timestamp", var1 = "x.raw", var2 ="x", xres =
+                               1920, yres = 1080, verbose = TRUE, algorithm.name = "fixation.algorithm", ylim = NA, font.size = 15){
+
+
+  if (sum(is.na(plot.window))>0) {
+    warning("No plot window selected!")
+  } else if (sum(is.na(plot.window))== 0 & plot.window[2]<1){ #Plot a user specified interval in samples
+    warning("fixation_plot_ts requires a plot window that can be found in the column specified in the parameter x.index.var")
+  }
+
+
+
+  w <- which(data_in[[x.index.var]]> plot.window[1] & data_in[[x.index.var]]<= plot.window[2])
+  if (length(w) == 0) {
+    warning("No gaze data found within the specified time range.")
+  }
+  data_in <- data_in[w,]
+
+
+  #Create a color map that matches the input variables
+  color_map <- setNames(c("darkgrey", "darkblue"), c(var1, var2))
+
+
+  g <- ggplot(data = data_in) +
+    geom_line(aes(x = .data[[x.index.var]], y = .data[[var1]], color = var1), linewidth = 1.7) +
+    geom_line(aes(x = .data[[x.index.var]], y = .data[[var2]], color = var2), linewidth = 1) +
+    scale_color_manual(values = color_map, name = "Data") +
+    ylab("Gaze position") +
+    xlab(x.index.var) + theme_minimal()+
+    theme(text = element_text(size = font.size))
+
+  #Set user specified limits on the Y axis
+  if ( sum(is.na(ylim) == 0)) {
+    g <- g +ylim(ylim)
+
+  }
+
+
+  if (!is.na(algorithm.name)){
+    if (length(unique(data_in[[algorithm.name]]))>1) {
+      g <- g +facet_wrap(vars(.data[[algorithm.name]]), ncol =1)
+    }
+  }
+
+
+  if (verbose){
+    suppressWarnings(
+      print(g))}
+
+  return(g)
+}

@@ -9,19 +9,25 @@ merge_adjacent_fixations(
   gaze_raw,
   distance.threshold = 0.5,
   ms.threshold = 75,
-  one_degree = 40
+  one_degree = 40,
+  xcol = "x.raw",
+  ycol = "y.raw"
 )
 }
 \arguments{
 \item{fixations}{Data frame with fixations}
 
-\item{gaze_raw}{Data matrix with raw data. See description of the ivt_filter function}
+\item{gaze_raw}{Data matrix with raw data. See description of the algorithm_ivt function}
 
 \item{distance.threshold}{Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.}
 
 \item{ms.threshold}{Maximum time elapsed between fixations to be merged.}
 
-\item{one_degree}{One degree of the visual field in the scale of the x and y coordinates. Typically pixels}
+\item{one_degree}{One degree of the visual field in the scale of the x and y coordinates. Typically pixels or proportion of the screen. Make sure the setting matches your data.}
+
+\item{xcol}{X coordinates in the raw gaze data matrix (gaze_raw)}
+
+\item{ycol}{Y coordinates in the raw gaze data matrix (gaze_raw)}
 }
 \value{
 A new data frame with fixations

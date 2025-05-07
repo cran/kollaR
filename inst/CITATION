@@ -1,6 +1,6 @@
 bibentry(
    bibtype = "Manual",
-   title = "kollaR: Filtering, visualization and analysis of eye tracking data",
+   title = "kollaR: Event Classification, Visualization and Analysis of Eye Tracking Data",
    author = person(given = c("Johan", "Lundin"), family = "Kleberg",  role = c("aut", "cre"),
                     email = "johan.lundin.kleberg@su.se"),
    organization = "Stockholm University",

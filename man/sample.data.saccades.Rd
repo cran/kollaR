@@ -17,6 +17,7 @@ A data frame
   \item{amplitude}{amplitude of saccade in degrees}
   \item{peak.velocity}{peak velocity of saccade}
   \item{velocity.profile}{velocity profile}
+  \item{missing.samples}{proportion of missing samples}
   \item{id}{participant number}
   }
 }

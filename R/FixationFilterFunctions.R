@@ -3,13 +3,16 @@
 #' @description Merge fixations which appear close in space and time. This function is called by other functions and typically
 #' not used outside them
 #' @param fixations Data frame with fixations
-#' @param gaze_raw Data matrix with raw data. See description of the ivt_filter function
-#' @param one_degree One degree of the visual field in the scale of the x and y coordinates. Typically pixels
+#' @param gaze_raw Data matrix with raw data. See description of the algorithm_ivt function
+#' @param one_degree One degree of the visual field in the scale of the x and y coordinates. Typically pixels or proportion of the screen. Make sure the setting matches your data.
+#' @param xcol X coordinates in the raw gaze data matrix (gaze_raw)
+#' @param ycol Y coordinates in the raw gaze data matrix (gaze_raw)
 #' @param ms.threshold Maximum time elapsed between fixations to be merged.
 #' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.
 #' @return A new data frame with fixations
 
-merge_adjacent_fixations <- function (fixations, gaze_raw, distance.threshold = 0.5, ms.threshold = 75, one_degree = 40) {
+merge_adjacent_fixations <- function (fixations, gaze_raw, distance.threshold = 0.5, ms.threshold = 75, one_degree = 40,
+                                      xcol = "x.raw", ycol = "y.raw") {
   #Loop through fixation candidates and merge adjacent fixations
   message("Merging adjacent fixations")
   i <- 1
@@ -19,31 +22,22 @@ merge_adjacent_fixations <- function (fixations, gaze_raw, distance.threshold = 
     if(d < distance.threshold & t < ms.threshold) { #FIXATIONS ARE CLOSE. MERGE THIS AND THE NEXT FIXATIONS
 
       fixation.candidate.starts <- fixations$firstline[i]
-      fixation.candidate.stops <- fixations$lastline[i+1]
-
-      #Calculate the center of the fixation
-      fixation.candidate.x = mean(gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops], na.rm = TRUE)
-      fixation.candidate.y = mean(gaze_raw$y.raw[fixation.candidate.starts:fixation.candidate.stops], na.rm = TRUE)
+      fixation.candidate.stops <- fixations$lastline[i+1] #Fixations are merged. The merged fixation ends with the last sample of the subsequent fixation in the current data
 
 
-      #Calculate the RMS of the detected fixation
-      xdiff <- (gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.x)^2
-      ydiff <- (gaze_raw$y.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.y)^2
+      merged_fixation <- summarize_fixation_metrics(fixation.candidate.starts, fixation.candidate.stops, gaze_raw[[xcol]], gaze_raw[[ycol]],
+                                                    gaze_raw$timestamp, one_degree = one_degree)
 
-      ydist <- sqrt(mean(ydiff, na.rm = TRUE))
-      xdist <- sqrt(mean(xdiff, na.rm = TRUE))
-
-      rms <- mean(c(xdist,ydist))/one_degree
-
-      #Update the merged fixation
-      fixations$x[i] <- fixation.candidate.x
-      fixations$y[i] <- fixation.candidate.y
-      fixations$duration[i] <- gaze_raw$timestamp[fixation.candidate.stops] - gaze_raw$timestamp[fixation.candidate.starts]
-      fixations$offset[i] <-  gaze_raw$timestamp[fixation.candidate.stops]
+      fixations$x[i] <- merged_fixation$x
+      fixations$y[i] <- merged_fixation$y
+      fixations$duration[i] <- merged_fixation$duration
+      fixations$offset[i] <-  merged_fixation$offset
       fixations$firstline[i] <- fixation.candidate.starts
       fixations$lastline[i] = fixation.candidate.stops
-      fixations$missing.samples[i] = mean(is.na(gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops]))
-      fixations$rmsd[i] <- rms
+      fixations$missing.samples[i] = merged_fixation$missing.samples
+      fixations$rmsd[i] <- merged_fixation$rmsd
+      fixations$rms.from.center[i] <- merged_fixation$rms.from.center
+
 
 
 
@@ -58,24 +52,23 @@ merge_adjacent_fixations <- function (fixations, gaze_raw, distance.threshold = 
 
 
 
-
-
-
-
-
 #' Dispersion-based fixation detection algorithm \code{(I-DT)}
-#' @description Apply a dispersion-based fixation \code{(I-DT)} filter to the eye tracking data.
+#' @description This function will be replaced by the function algorithm_idt in subsequent versions. The two functions take the
+#' same input arguments.idt_filter is a wrapper around idt_algorithm.
+#'
+#' Apply a dispersion-based fixation \code{(I-DT)} detection algorithm to the eye tracking data.
 #' The algorithm identifies fixations as samples clustering within a spatial area.
 #' The procedure is described in Blignaut 2009
 #' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
 #' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function process.gaze for this.
-#' Timestamps are assumed to be in milliseconds. Default settings assume that x and y coordinates are in pixels.
+#' Timestamps are assumed to be in milliseconds.
 #' The output data is a list with two data frames: fixations includes all detected fixations with coordinates, duration
-#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, raw and filtered gaze coordinates.
+#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, raw gaze coordinated and fixation coordinates.
 #' The function can be slow for long recordings and/or data recorded at high sampling rates.
-#' @param gaze_raw Data frame with unfiltered gaze data. Include the variable timestamp with timing in ms and columns with raw
-#' x and y data as specified by the paramerers xcol and ycol or their default values
-#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels
+#' @param gaze_raw Data frame with gaze data before event detection. Include the variable timestamp with timing in ms and columns with raw
+#' x and y data as specified by the parameters xcol and ycol or their default values
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates. The unit is typically pixels or proportion
+#' of the screen. Make sure that the setting matches your data
 #' @param dispersion.threshold Maximum radius of fixation candidates. Samples clustering within a circle of this limit will be
 #' classified as a fixation if the duration is long enough.
 #' @param min.duration Minimum duration of fixations in milliseconds
@@ -86,11 +79,50 @@ merge_adjacent_fixations <- function (fixations, gaze_raw, distance.threshold = 
 #' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0-1
 #' @examples
 #' idt_data <- idt_filter(sample.data.processed)
-#' @return list including separate data frames for fixations and sample-by-sample data including filtered and unfiltered data.
-#' The fixations data frame includes onset, offset, x, y, RMSD and missing samples of each fixation.
-
-
+#' @return list including separate data frames for fixations and sample-by-sample data including gaze coordinates with and without fixation detection.
+#' The fixations data frame includes onset, offset, x, y, sample-to-sample root-mean-square deviations (RMSD, precision), RMSD from fixation centroid, and missing samples of each fixation.
 idt_filter <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.duration = 50, xcol = "x.raw", ycol = "y.raw",
+                          distance.threshold = 0.7, merge.ms.threshold = 75, missing.samples.threshold = 0.5) {
+
+  warning('This function will be replaced by algorithm_idt in future versions of kollaR')
+  output <- algorithm_idt(gaze_raw, one_degree, dispersion.threshold, min.duration, xcol, ycol,
+  distance.threshold, merge.ms.threshold, missing.samples.threshold)
+
+  return(output)
+
+}
+
+
+
+
+#' Dispersion-based fixation detection algorithm \code{(I-DT)}
+#' @description Apply a dispersion-based fixation \code{(I-DT)} filter to the eye tracking data.
+#' The algorithm identifies fixations as samples clustering within a spatial area.
+#' The procedure is described in Blignaut 2009
+#' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
+#' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function preprocess_gaze for this.
+#' Timestamps are assumed to be in milliseconds.
+#' The output data is a list with two data frames: fixations includes all detected fixations with coordinates, duration
+#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, raw gaze coordinates (e.g., before event detection) and
+#' fixation coordinates.
+#' The function can be very slow for long recordings and/or data recorded at high sampling rates.
+#' @param gaze_raw Data frame with gaze data before fixation detection. Include the variable timestamp with timing in ms and columns with raw
+#' x and y data as specified by the parameters xcol and ycol or their default values
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates. The unit is typically pixels or proportion
+#' of the screen. Make sure that the setting matches your data
+#' @param dispersion.threshold Maximum radius of fixation candidates. Samples clustering within a circle of this limit will be
+#' classified as a fixation if the duration is long enough.
+#' @param min.duration Minimum duration of fixations in milliseconds
+#' @param xcol Name of the column where raw x values are stored. Default: x.raw
+#' @param ycol Name of the column where raw y values are stored. Default: y.raw
+#' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.
+#' @param merge.ms.threshold Only subsequent fixations occurring within this time window are merged
+#' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0-1
+#' @return list including separate data frames for fixations and sample-by-sample data including gaze coordinates before and after fixation detection.
+#' The fixations data frame includes onset, offset, x, y, sample-to-sample root-mean-square deviations (RMSD, precision), RMSD from fixation centroid,  and missing samples of each fixation.
+
+
+algorithm_idt <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.duration = 50, xcol = "x.raw", ycol = "y.raw",
                        distance.threshold = 0.7, merge.ms.threshold = 75, missing.samples.threshold = 0.5) {
   #Apply a dispersion-based fixation filter.
   #Following Blignaut 2009
@@ -154,29 +186,11 @@ idt_filter <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.d
         #A candidate fixation has been detected but the next sample is outside the dispersion threshold. Fixation has ended
         #Summarize the fixation metrics and save them.Fixation ends if a NA value appears
 
-        #Calculate the RMS of the detected fixation
-        xdiff <- (gaze_raw$x.raw[fixation.candidate.start:sample_index-1] - fixation.candidate.x)^2
-        ydiff <- (gaze_raw$y.raw[fixation.candidate.start:sample_index-1] - fixation.candidate.y)^2
+        this.fixation <- summarize_fixation_metrics(fixation.candidate.start, sample_index,
+                                                    x = gaze_raw$x.raw, y = gaze_raw$y.raw, timestamp = gaze_raw$timestamp,
+                                                    one_degree = one_degree)
 
-        ydist <- sqrt(mean(ydiff,na.rm = TRUE))
-        xdist <- sqrt(mean(xdiff,na.rm = TRUE))
-
-        rms <- mean(c(xdist,ydist))
-        rms <- rms/one_degree
-
-        fixations <- rbind(fixations,
-                           data.frame(
-                             x = fixation.candidate.x,
-                             y = fixation.candidate.y,
-                             duration = gaze_raw$timestamp[sample_index-1] - gaze_raw$timestamp[fixation.candidate.start],
-                             onset = gaze_raw$timestamp[fixation.candidate.start],
-                             offset=  gaze_raw$timestamp[sample_index-1],
-                             missing.samples = mean(is.na(gaze_raw$x.raw[fixation.candidate.start:sample_index-1])),
-                             rmsd = rms,
-                             firstline = fixation.candidate.start,
-                             lastline = sample_index-1
-
-                           ))
+        fixations <- rbind(fixations, this.fixation)
 
 
         #Set these values to default to start looking for the next fixation
@@ -217,7 +231,7 @@ idt_filter <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.d
   }
 
 
-  fixations$fixation.filter <- "dispersion"
+  fixations$fixation.algorithm <- "idt"
   fixations$threshold <- paste0(round(dispersion.threshold), " deg.")
   out <- list()
   out[['fixations']] <- fixations
@@ -226,24 +240,26 @@ idt_filter <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.d
 }
 
 #'I-VT algorithm for fixation and saccade detection
-#'@description Apply an \code{I-VT} filter to the eye tracking data.
+#'@description Apply an \code{I-VT} event detection algorithm to the eye tracking data.
 #' The algorithm identifies saccades as periods with sample-to-sample velocity above a threshold and fixations as periods between saccades.
 #' See Salvucci and Goldberg 2000. Identifying fixations and saccades in eye tracking protocols. Proc. 2000 symposium on Eye tracking
 #' research and applications for a description.
 #'
 #' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
-#' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function process.gaze for this.
-#' Timestamps are assumed to be in milliseconds. Default settings assume that x and y coordinates are in pixels.
+#' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function preprocess_gaze for this.
+#' Timestamps are assumed to be in milliseconds. X and y coordinates can be in pixels or proportion of the screen
+#' depending on the format of your data. Make sure that the parameter one_degree matches the unit of your data
 #' The output data is a list with three data frames: fixations includes all detected fixations with coordinates, duration
-#' and a number of other metrics, saccades includes data for saccades, filt.gaze is a sample-by-sample data frame with time stamps, raw and filtered gaze coordinates for fixations.
+#' and a number of other metrics, saccades includes data for saccades, filt.gaze is a sample-by-sample data frame with time stamps, and gaze coordinates before ("raw") and after fixation detection.
 #' The function has a number of parameters for removing potentially invalid fixations and saccades. The parameter min.fixation.duration can be used to remove unlikely
 #' short fixations. If the parameter missing.samples threshold is set to a value lower than 1, fixations with a higher proportion of missing raw samples are removed.
 #'
 #'
 #'
-#' @param gaze_raw Data frame with unfiltered gaze data. Include the variable timestamp with timing in ms and columns with raw
+#' @param gaze_raw Data frame with gaze data before fixation and saccade detection. Include the variable timestamp with timing in ms and columns with raw
 #' x and y data as specified by the parameters xcol and ycol or their default values
-#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels or proportion of the screen. Make sure that
+#' it is consistent with the format of your data
 #' @param velocity.threshold Velocity threshold for saccade detection in degrees/second
 #' @param velocity.filter.ms Window in milliseconds for moving average window used for smoothing the sample to sample velocity vector.
 #' @param min.saccade.duration Minimum duration of saccades in milliseconds
@@ -252,15 +268,24 @@ idt_filter <- function(gaze_raw, one_degree = 40, dispersion.threshold =1, min.d
 #' @param xcol Name of the column where raw x values are stored. Default: x.raw
 #' @param ycol Name of the column where raw y values are stored. Default: y.raw
 #' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.
-#' @param merge.ms.threshold Subsequent fixations occuring within this time window and distance specified by distance.threshold are merged. Set to 0 if you don't want to merge fixations.
+#' @param merge.ms.threshold Subsequent fixations occuring within this time window and distance specified by distance.threshold are merged.
+#' Set to 0 if you don't want to merge fixations.
+#' @param trim.fixations If TRUE, the onset of each fixation will be shifted forwards to the first non-missing (non-NA) sample during the period.
+#' The offset will be shifted backwards to the last non-missing
+#' sample. If TRUE, and the parameter trim.dispersion.threshold is a positive number, samples at the margins with large distances from the centroid
+#' will also be excluded
+#' @param trim.dispersion.threshold If not NA and trim.fixations is TRUE, fixation onsets and offsets will also be shrinked to exclude any samples
+#' at the margins with a larger distance from the centroid than trim.dispersion.threshold*MAD.
 #' @param save.velocity.profiles If TRUE, return velocity profiles of each detected saccade as a variable in the saccades data frame
-#' @return list including separate data frames for fixations and sample-by-sample data including filtered and unfiltered data.
-#' The fixations data frame gives onset, offset, x, y, RMSD and missing samples of each fixation.
+#' @return list including separate data frames for fixations and sample-by-sample data including x and y coordinates before and after fixation detection.
+#' The fixations data frame gives onset, offset, x, y, sample-to-sample RMSD (precision),root-mean-square deviations from fixation centroid,  and missing samples of each fixation.
 #' @examples
-#' ivt_data <- ivt_filter(sample.data.processed, velocity.threshold = 30, min.fixation.duration = 40)
+#' ivt_data <- algorithm_ivt(sample.data.processed, velocity.threshold = 30,
+#' min.fixation.duration = 40)
 
-ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35, min.saccade.duration = 10, min.fixation.duration = 40, one_degree =40, save.velocity.profiles = FALSE,
-                       xcol = "x.raw", ycol = "y.raw", distance.threshold = 0.7, merge.ms.threshold = 75, missing.samples.threshold = 0.5){
+algorithm_ivt <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35, min.saccade.duration = 10, min.fixation.duration = 40,
+                        one_degree =40, save.velocity.profiles = FALSE,xcol = "x.raw", ycol = "y.raw", distance.threshold = 0.7,
+                        merge.ms.threshold = 75, missing.samples.threshold = 0.5, trim.fixations = FALSE, trim.dispersion.threshold =NA){
 
 
   #Create new variables in the raw gaze matrix with the expected variable names if
@@ -363,8 +388,8 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
                         y.offset = gaze_raw$y.raw[saccade.ends[i]],
                         duration = gaze_raw$timestamp[saccade.ends[i]] - gaze_raw$timestamp[saccade.starts[i]],
                         amplitude = amplitude,
-                        peak.velocity = max(gaze_raw$velocity[saccade.starts[i]:saccade.ends[i]], na.rm = T)
-
+                        peak.velocity = max(gaze_raw$velocity[saccade.starts[i]:saccade.ends[i]], na.rm = T),
+                        missing.samples = mean(is.na(gaze_raw$x.raw[saccade.starts[i]:saccade.ends[i]]))
                       )
 
     )
@@ -398,32 +423,11 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
     fixation.candidate.starts <- fixation.starts[i]
     fixation.candidate.stops <- saccade.starts[i+1]-1
 
-    #Calculate the center of the detected fixation
-    fixation.candidate.x <- mean(gaze_raw$x.raw[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
-    fixation.candidate.y <- mean(gaze_raw$y.raw[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
+    this.fixation <- summarize_fixation_metrics(fixation.candidate.starts, fixation.candidate.stops,
+                                                x = gaze_raw$x.raw, y = gaze_raw$y.raw, timestamp = gaze_raw$timestamp, one_degree = one_degree)
 
+    fixations <- rbind(fixations, this.fixation)
 
-    #Calculate the RMS of the detected fixation
-    xdiff <- (gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.x)^2
-    ydiff <- (gaze_raw$y.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.y)^2
-
-    ydist <- sqrt(mean(ydiff, na.rm = TRUE))
-    xdist <- sqrt(mean(xdiff, na.rm = TRUE))
-
-    rms <- mean(c(xdist,ydist))/one_degree
-
-    fixations <- rbind(fixations,
-                       data.frame(
-                         x = fixation.candidate.x,
-                         y = fixation.candidate.y,
-                         duration = gaze_raw$timestamp[fixation.candidate.stops] - gaze_raw$timestamp[fixation.candidate.starts],
-                         onset = gaze_raw$timestamp[fixation.candidate.starts],
-                         offset=  gaze_raw$timestamp[fixation.candidate.stops],
-                         missing.samples = mean(is.na(gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops])),
-                         rmsd = rms,
-                         firstline = fixation.candidate.starts,
-                         lastline = fixation.candidate.stops
-                       ))
 
 
   }
@@ -433,6 +437,14 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
 
 
   #Step 3: Loop through fixation candidates and merge adjacent fixations
+ #Exclude NAs and/or samples with large deciations from the centroid
+  if (trim.fixations == TRUE){
+
+    fixations <- trim_fixations(fixations, filt.gaze, xcol = xcol, ycol = ycol,threshold = trim.dispersion.threshold)
+  }
+
+
+
   #Merge adjacent fixations
   if (distance.threshold >0){
     fixations <- merge_adjacent_fixations(fixations, filt.gaze, distance.threshold = distance.threshold, ms.threshold = merge.ms.threshold, one_degree = one_degree)
@@ -440,8 +452,11 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
 
 
   #Remove too short fixations
-  fixations <- dplyr::filter(fixations, .data$duration >=min.fixation.duration)
+  #fixations <- dplyr::filter(fixations, .data$duration >=min.fixation.duration)
 
+
+  fixations <- dplyr::filter(fixations, .data$duration >= min.fixation.duration)
+  fixations <- dplyr::filter(fixations, .data$missing.samples < missing.samples.threshold)
 
   #Save filtered x and y coordinates for each sample
   for (i in 1: dim(fixations)[1]){
@@ -453,9 +468,7 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
 
 
 
-  fixations <- dplyr::filter(fixations, .data$duration >= min.fixation.duration)
-  fixations <- dplyr::filter(fixations, .data$missing.samples < missing.samples.threshold)
-  fixations$fixation.filter <- "ivt"
+  fixations$fixation.algorithm <- "ivt"
   fixations$threshold <- paste0(round(velocity.threshold), " deg.")
 
   out <- list()
@@ -468,8 +481,63 @@ ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35
 }
 
 
+#'I-VT algorithm for fixation and saccade detection
+#'@description Apply an \code{I-VT} filter to the eye tracking data.
+#' This function is a wrapper around the function ivt_algorithm. It will be replaced by algorithm_ivt in future versions.
+#' The algorithm identifies saccades as periods with sample-to-sample velocity above a threshold and fixations as periods between saccades.
+#' See Salvucci and Goldberg 2000. Identifying fixations and saccades in eye tracking protocols. Proc. 2000 symposium on Eye tracking
+#' research and applications for a description.
+#'
+#' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
+#' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function process.gaze for this.
+#' Timestamps are assumed to be in milliseconds.
+#' The output data is a list with three data frames: fixations includes all detected fixations with coordinates, duration
+#' and a number of other metrics, saccades includes data for saccades, filt.gaze is a sample-by-sample data frame with time stamps, and gaze coordinates before ("raw") and
+#' after fixation detection.
+#' The function has a number of parameters for removing potentially invalid fixations and saccades. The parameter min.fixation.duration can be used to remove unlikely
+#' short fixations. If the parameter missing.samples threshold is set to a value lower than 1, fixations with a higher proportion of missing raw samples are removed.
+#'
+#'
+#'
+#' @param gaze_raw Data frame with gaze data before fixation and saccade detection. Include the variable timestamp with timing in ms and columns with raw
+#' x and y data as specified by the parameters xcol and ycol or their default values
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels or proportion of the screen. Make sure that
+#' it is consistent with the format of your data
+#' @param velocity.threshold Velocity threshold for saccade detection in degrees/second
+#' @param velocity.filter.ms Window in milliseconds for moving average window used for smoothing the sample to sample velocity vector.
+#' @param min.saccade.duration Minimum duration of saccades in milliseconds
+#' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0 to 1.
+#' @param min.fixation.duration Minimum duration of fixations in milliseconds
+#' @param xcol Name of the column where raw x values are stored. Default: x.raw
+#' @param ycol Name of the column where raw y values are stored. Default: y.raw
+#' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.
+#' @param merge.ms.threshold Subsequent fixations occuring within this time window and distance specified by distance.threshold are merged. Set to 0 if you don't want to merge fixations.
+#' @param trim.fixations If TRUE, the onset of each fixation will be shifted forwards to the first non-missing (non-NA) sample during the period. The offset will be shifted backwards to the last non-missing
+#' sample. If TRUE, and the parameter trim.dispersion.threshold is a positive number, samples at the margins with large distances from the centroid will also be excluded
+#' @param trim.dispersion.threshold If not NA and trim.fixations is TRUE, fixation onsets and offests will also be shrinked to exclude any samples at the margins with a larger
+#' @param save.velocity.profiles If TRUE, return velocity profiles of each detected saccade as a variable in the saccades data frame
+#' @return list including separate data frames for fixations and sample-by-sample data including gaze coordinates before and after fixation detection.
+#' The fixations data frame gives onset, offset, x, y, sample-to-sample root-mean-square deviations (RMSD, precision), RMSD from fixation centroid,  and missing samples of each fixation.
+#' @examples
+#' ivt_data <- ivt_filter(sample.data.processed, velocity.threshold = 30, min.fixation.duration = 40)
+
+ivt_filter <- function(gaze_raw, velocity.filter.ms =20, velocity.threshold = 35, min.saccade.duration = 10, min.fixation.duration = 40, one_degree =40, save.velocity.profiles = FALSE,
+                          xcol = "x.raw", ycol = "y.raw", distance.threshold = 0.7, merge.ms.threshold = 75, missing.samples.threshold = 0.5, trim.fixations = FALSE, trim.dispersion.threshold =NA){
+
+  output <- algorithm_ivt(gaze_raw = gaze_raw, velocity.filter.ms = velocity.filter.ms, velocity.threshold = velocity.threshold,
+                          min.saccade.duration = min.saccade.duration, min.fixation.duration = min.fixation.duration,
+                          one_degree = one_degree, save.velocity.profiles = save.velocity.profiles,
+                          xcol = xcol, ycol = ycol, distance.threshold = distance.threshold, merge.ms.threshold = merge.ms.threshold,
+                          missing.samples.threshold = missing.samples.threshold,
+                          trim.fixations = trim.fixations, trim.dispersion.threshold = trim.dispersion.threshold)
+
+  return(output)
+  message('This function will be replaced by ivt_algorithm in future versions of kollaR')
+}
+
+
 #' Find transition weights for each sample in a gaze matrix.
-#' @description This function is used internally by the function cluster2m
+#' @description This function is used internally by the function algorithm_i2mc
 #' @param data_in Input data
 #' @param window.step.size Step size
 #' @param windowsize Window size
@@ -541,15 +609,21 @@ return(downsampled_df)
 #' Data from the left and right eye are not processed separately. Adjust your analysis scripts to include this steps if you want the algorithm to include this step, as in Hessels et al 2017.
 #' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
 #' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function process.gaze for this.
-#' Timestamps are assumed to be in milliseconds. Default settings assume that x and y coordinates are in pixels.
+#' Timestamps are assumed to be in milliseconds. X and y coordinates can be in pixels or proportion of the screen. Make sure that the parameter one_degree is consistent with the format of your data.
 #' The output data is a list with two data frames: fixations includes all detected fixations with coordinates, duration
-#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, raw and filtered gaze coordinates for fixations.
+#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, raw gaze coordinates (e.g., before fixation detection)
+#' and fixation coordinates.
 #' If the input downsampling.factors is not empty, transition weights will be calculated based on the data in the original sampling rate and data at all sampling rate specified in this variable.
 #' According to Hessels et al 2017, this step makes the analysis less vulnerable to noise in the data.
+#' If the parameter threshold.on.off is not NA, the onsets and offsets of fixations will be shifted to exclude samples at the margins with a larger absolute distance from the
+#' fixation centroid than a threshold value. The threshold value is defined as the median of all absolute distances from the centroid plus
+#' threshold.on.off * MAD of the absolute distances. Default threshold is 3. Samples with large distances from the fixation centroid right at the onset and offset of a fixation may
+#' belong to a saccade.
 #'
-#' @param gaze_raw Data frame with unfiltered gaze data. Include the variable timestamp with timing in ms and columns with raw
+#' @param gaze_raw Data frame with gaze data prior to fixation detection. Include the variable timestamp with timing in ms and columns with
 #' x and y data as specified by the parameters xcol and ycol or their default values
-#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels or proportion of the screen. Make
+#' sure that the setting matches the format of your data
 #' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you do not want to merge fixations.
 #' @param merge.ms.threshold Only fixations occurring within this time window in milliseconds are merged
 #' @param window.step.size Distance between starting points of subsequent analysis windows in samples
@@ -558,18 +632,20 @@ return(downsampled_df)
 #' @param weight.threshold Samples with a transition weight exceeding it are candidates for fixation detection.
 #' @param min.fixation.duration Minimum duration of accepted fixations. Shorter fixations are discarded
 #' @param downsampling.factors Factors to downsample the data by in calculating fixation weights. If downsampling.factors has the values \code{c(10, 2)}, transition weights will be calculated base on data in
-#' the original sampling rate as well as the two donwsampled data sets.
+#' the original sampling rate as well as the two downsampled data sets.
 #' @param xcol Name of the column where raw x values are stored. Default: x.raw
 #' @param ycol Name of the column where raw y values are stored. Default: y.raw
 #' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0 to 1.
-#' @return list including separate data frames for fixations and sample-by-sample data including filtered and unfiltered data.
-#'The "fixations" data frame gives onset, offset, x, y, RMSD and missing samples of each fixation.
+#' @param threshold.on.off if not NA, shift fixation onset and offset to exclude samples at the margin with absolute distances from the fixation center > threshold.on.off * MAD (distance) + median (distance)
+#' @return list including separate data frames for fixations and sample-by-sample data including gaze coordinates before ("raw") and after fixation detection.
+#'The "fixations" data frame gives onset, offset, x, y, sample-to-sample root-mean-square deviations (RMSD, precision), RMSD from fixation centroid, and missing samples of each fixation.
 #' @examples
-#' gaze <- cluster2m(sample.data.processed)
+#' gaze <- algorithm_i2mc(sample.data.processed)
 
-cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7, one_degree = 40, window.step.size = 6,
+
+algorithm_i2mc <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7, one_degree = 40, window.step.size = 6,
                        min.fixation.duration = 40, weight.threshold = 2, xcol = "x.raw", ycol = "y.raw", merge.ms.threshold = 40,
-                       downsampling.factors =NA, missing.samples.threshold = 0.5) {
+                       downsampling.factors =NA, missing.samples.threshold = 0.5, threshold.on.off = 3) {
 
   if (!"timestamp" %in% names(gaze_raw)) {warning("Variable timestamp missing in gaze matrix")}
 
@@ -657,29 +733,15 @@ cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7
     fixation.candidate.y = mean(gaze_raw$y.raw[fixation.candidate.starts:fixation.candidate.stops], na.rm = TRUE)
 
 
-    #Calculate the RMS of the detected fixation
-    xdiff <- (gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.x)^2
-    ydiff <- (gaze_raw$y.raw[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.y)^2
 
-    ydist <- sqrt(mean(ydiff, na.rm = TRUE))
-    xdist <- sqrt(mean(xdiff, na.rm = TRUE))
+        this.fixation <- summarize_fixation_metrics(fixation.candidate.starts, fixation.candidate.stops,
+                                                x = gaze_raw$x.raw, y = gaze_raw$y.raw, timestamp = gaze_raw$timestamp, one_degree = one_degree)
 
-    rms <- mean(c(xdist,ydist))/one_degree
+
 
     fixations <- rbind(fixations,
-                       data.frame(
-                         x = fixation.candidate.x,
-                         y = fixation.candidate.y,
-                         duration = gaze_raw$timestamp[fixation.candidate.stops] - gaze_raw$timestamp[fixation.candidate.starts],
-                         onset = gaze_raw$timestamp[fixation.candidate.starts],
-                         offset=  gaze_raw$timestamp[fixation.candidate.stops],
-                         firstline = fixation.candidate.starts,
-                         lastline = fixation.candidate.stops,
-                         missing.samples = mean(is.na(gaze_raw$x.raw[fixation.candidate.starts:fixation.candidate.stops])),
-                         rmsd = rms
+                       this.fixation)
 
-
-                       ))
 
     #Move to the next fixation candidate (next sample with weights < threshold if there is one. Otherwise quit)
     if(sum(under.threshold>fixation.candidate.stops)>0){
@@ -688,7 +750,13 @@ cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7
 
   }
 
-  #Step 3: Loop through fixation candidates and merge adjacent fixations
+#Step 3. Trim fixations. Shrink the period included in fixations to exclude overlap with sacccades.
+  if (!is.na(threshold.on.off)){
+    fixations <- trim_fixations(fixations = fixations, gaze = gaze_raw, xcol = "x.raw", ycol = "y.raw", threshold = threshold.on.off)
+  }
+
+
+  #Step 4: Loop through fixation candidates and merge adjacent fixations
   #Merge adjacent fixations
   if (distance.threshold >0){
     fixations <- merge_adjacent_fixations(fixations, filt.gaze, distance.threshold = distance.threshold, ms.threshold = merge.ms.threshold, one_degree = one_degree)
@@ -713,7 +781,7 @@ cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7
   #Remove variables to make the output consistent with other functions
   #  fixations <- select(fixations, -firstline, -lastline)
 
-  fixations$fixation.filter <- "i2mc"
+  fixations$fixation.algorithm <- "i2mc"
   fixations$threshold <- paste0(round(weight.threshold), " SD")
   out <- list()
   out[['fixations']] <- fixations
@@ -724,3 +792,545 @@ cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7
 
 }
 
+
+#' Fixation detection by two-means clustering
+#' @description Identify fixations in a gaze matrix using identification by two-means clustering. The algorithm is based on Hessels et al 2017. Behavior research methods, 49, 1802-1823.
+#' Data from the left and right eye are not processed separately. Adjust your analysis scripts to include this steps if you want the algorithm to include this step, as in Hessels et al 2017.
+#' Input data must be a data frame with the variables timestamp, x.raw and y.raw as variables. Other variables can
+#' be included but will be ignored. This function does not perform pre-processing in the form of interpolation or smoothing. Use the function process.gaze for this.
+#' Timestamps are assumed to be in milliseconds. X and y coordinates can be in pixels or proportion of the screen. Make sure that the parameter one_degree is consistent with the format of your data!
+#' The output data is a list with two data frames: fixations includes all detected fixations with coordinates, duration
+#' and a number of other metrics, filt.gaze is a sample-by-sample data frame with time stamps, gaze coordinates before fixation detection ("raw") for and fixation coordinates.
+#' If the input downsampling.factors is not empty, transition weights will be calculated based on the data in the original sampling rate and data at all sampling rate specified in this variable.
+#' According to Hessels et al 2017, this step makes the analysis less vulnerable to noise in the data.
+#'
+#' @param gaze_raw Data frame with gaze data before fixation detection. Include the variable timestamp with timing in ms and columns with
+#' x and y data as specified by the parameters xcol and ycol or their default values
+#' @param one_degree One degree of the visual field in the unit of the raw x and y coordinates, typically pixels or proportion of the screen. Make
+#' sure that the setting matches the format of your data
+#' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you do not want to merge fixations.
+#' @param merge.ms.threshold Only fixations occurring within this time window in milliseconds are merged
+#' @param window.step.size Distance between starting points of subsequent analysis windows in samples
+#' @param windowlength.ms Length of the moving analysis windows
+#' @param windowlength.ms Length of the moving analysis windows
+#' @param weight.threshold Samples with a transition weight exceeding it are candidates for fixation detection.
+#' @param min.fixation.duration Minimum duration of accepted fixations. Shorter fixations are discarded
+#' @param downsampling.factors Factors to downsample the data by in calculating fixation weights. If downsampling.factors has the values \code{c(10, 2)}, transition weights will be calculated base on data in
+#' the original sampling rate as well as the two downsampled data sets.
+#' @param xcol Name of the column where raw x values are stored. Default: x.raw
+#' @param ycol Name of the column where raw y values are stored. Default: y.raw
+#' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0 to 1.
+#' @return list including separate data frames for fixations and sample-by-sample data including gaze coordinates before fixation classification ("raw")
+#' and fixation coordinates.
+#'The "fixations" data frame gives onset, offset, x, y, sample-to-sample root-mean-square deviations (RMSD, precision), RMSD from fixation centroid,  and missing samples of each fixation.
+#' @examples
+#' gaze <- cluster2m(sample.data.processed)
+
+
+cluster2m <- function (gaze_raw, windowlength.ms = 200, distance.threshold = 0.7, one_degree = 40, window.step.size = 6,
+                            min.fixation.duration = 40, weight.threshold = 2, xcol = "x.raw", ycol = "y.raw", merge.ms.threshold = 40,
+                            downsampling.factors =NA, missing.samples.threshold = 0.5) {
+
+  output <- algorithm_i2mc(gaze_raw = gaze_raw, windowlength.ms = windowlength.ms, distance.threshold = distance.threshold, one_degree = one_degree,
+                           window.step.size = window.step.size, min.fixation.duration = min.fixation.duration, weight.threshold = weight.threshold,
+                           xcol = xcol, ycol = ycol, merge.ms.threshold = merge.ms.threshold, downsampling.factors = downsampling.factors,
+                           missing.samples.threshold = missing.samples.threshold)
+
+  warning('cluster2m will be removed in future versions and replaced by algorithm_i2mc')
+  return(output)
+}
+
+
+
+
+
+
+#' Adaptive velocity-based algorithm for saccade and fixation detection
+#' @description
+#' The function is based on a procedure suggested by Nyström and Holmqvist 2010. Behavior Research Methods, 42, 188-204.
+#' Velocity thresholds for saccade onset and offset are adapted to the specific data at hand.
+#' Please see Nyström and Holmqvist (2010) for a description of this procedure.
+#' STEP 1: The function starts by identifying peak velocities larger than an initial threshold (peak threshold, specified by the parameter peak.threshold.start),
+#' and then iteratively adjusts this threshold through the following steps: A) The mean (M) and standard deviation (SD) of the velocities of all samples
+#' with velocties below the peak threshold are calculated. B) the updated peak threshold is defined as M +6SD. C) Steps A-B are repeated until
+#' the difference between the old and new peak threshold is < 1 degree. D) The threshold for identification of saccade onsets (saccade onset threshold) is defined as M + onset.threshold *SD.
+#' For each segment in the data with velocities above peak threshold, go through steps 2-3:
+#'
+#' STEP 2: Saccade onset is defined by searching backwards from the leftmost sample with velocity above peak threshold to the first sample with a velocity above saccade onset threshold and a higher velocity than the previous sample.
+#' STEP 3: Define saccade offset threshold as a weighted sum of a) the saccade onset threshold and b) the 'local noise factor' defined as mean + 3SD of sample-to-sample velocity during a period just before saccade onset. This period has the same length as
+#' the minimum fixation duration (specified by the parameter min.fixation.duration)
+#' Saccade onset is defined by searching forward from the rightmost sample with a velocity above peak threshold to the first sample with a velocity below saccade offset threshold and a lower velocity than the previous sample.
+#' STEP 4: Fixations are defined as periods between saccades (as in the \code{I-VT} algorithm)
+#'
+#' If the function can not detect a sample which fulfills both the threshold criterion and the acceleration/deceleration criterion during step 2-3, it will try to find a sample that fulfills the threshold criterion. If this fails, the saccade is discarded.
+#'
+#' The input data should be pre-processed (e.g., noise removal and interpolation over gaps)
+#'
+#' The output data is a list with three data frames: fixations includes all detected fixations with coordinates, duration
+#' and a number of other metrics, saccades includes data for saccades, filt.gaze is a sample-by-sample data frame with time stamps, and gaze coordinates before ("raw") and after fixation detection.
+#' The function has a number of parameters for removing potentially invalid fixations and saccades. The parameter min.fixation.duration can be used to remove unlikely
+#' short fixations. If the parameter missing.samples threshold is set to a value lower than 1, fixations with a higher proportion of missing raw samples are removed.
+#'
+#'
+#' @param gaze Data frame with gaze data before saccade and fixation data identification. The data frame must include the variable timestamp with
+#' timing in milliseconds and columns for x and y coordinates specified by the columns 'xcol' and 'ycol' respectively.
+#' @param xcol column in the gaze data frame where x coordinates are found. Default: x.raw
+#' @param ycol column in the gaze data frame where y coordinates are found. Default: y.raw
+#' @param one_degree one degree of the visual field in the unit of the x and y coordinates in the data. Typically pixels or degrees.
+#' @param velocity.filter.ms If velocity.filter.ms is not NA, the velocity vector is smoothed using a moving median filter corresponding to this value in ms
+#' before the propose threshold is identified. Default: 10.
+#' @param min.fixation.duration Minimum duration of accepted fixations. This parameter is also used to calculate 'local noise' prior to the onset of a saccade. Default: 40
+#' @param min.saccade.duration Minimum duration of accepted saccades in ms. Default: 10
+#' @param save.velocity.profiles If TRUE, save velocity profiles of each saccade. Default: FALSE.
+#' @param missing.samples.threshold Remove fixations with a higher proportion of missing samples. Range 0 to 1.
+#' @param distance.threshold Subsequent fixations occurring withing this distance are merged. Set to 0 if you don't want to merge fixations.
+#' @param merge.ms.threshold Subsequent fixations occuring within this time window and distance specified by distance.threshold are merged. Set to 0 if you don't want to merge fixations.
+#' @param peak.threshold.start Initial peak threshold value in degrees of the visual field. Default: 200
+#' @param onset.threshold.sd Number of standard deviations used to define saccade onset threshold
+#' @param alpha Weight of the saccade onset threshold when defining threshold for saccade offset
+#' @param beta Weight of local noise factor when defining threshold for saccade offset
+#' @param min.period.ms Peak velocity threshold will be iteratively updated based on periods in the data in which consecutive values of at least this time period are below the previous threshold estimate.
+#' @param trim.fixations If TRUE, the onset of each fixation will be shifted forwards to the first non-missing (non-NA) sample during the period. The offset will be shifted backwards to the last non-missing
+#' sample. If TRUE, and the parameter trim.dispersion.threshold is a positive number, samples at the margins with large distances from the centroid will also be excluded
+#' @param trim.dispersion.threshold If not NA and trim.fixations is TRUE, fixation onsets and offests will also be shrinked to exclude any samples at the margins with a larger
+#' distance from the fixation centroid than trim.dispersion.threshold * MAD.
+#' @param margin.ms A margin in ms around periods of identified consecutive values below the previous threshold estimate which will be excluded from the estimates. This makes
+#' the algorithm more robust to noise.
+#' @return list including separate data frames for fixations, saccades, and sample-by-sample data
+
+
+
+algorithm_adaptive <- function(gaze, min.fixation.duration = 40, min.saccade.duration = 10, xcol = "x.raw", ycol = "y.raw",
+                               save.velocity.profiles = FALSE, missing.samples.threshold = 0.5, merge.ms.threshold = 75,
+                               distance.threshold = 0.7, alpha = 0.7, beta = 0.3, one_degree = 40, velocity.filter.ms = 10,
+                               peak.threshold.start = 200, onset.threshold.sd = 3, min.period.ms = 40, margin.ms = 3,
+                               trim.fixations = TRUE, trim.dispersion.threshold =NA) {
+
+
+  t <- suggest_threshold(gaze, velocity.filter.ms =velocity.filter.ms, one_degree =one_degree, xcol = xcol, ycol = ycol,
+                         peak.threshold.start = peak.threshold.start, onset.threshold.sd = onset.threshold.sd,
+                         min.period.ms = min.period.ms, margin.ms = margin.ms)
+
+
+
+  onset.threshold <- t[["onset.threshold"]]
+  peak.threshold <- t[["peak.threshold"]]
+  velocity.vect <- t[["velocity"]]
+
+  one.sample <- median(diff(gaze$timestamp),na.rm =T)
+
+
+  #Create variables
+  saccades <- data.frame() # Store saccades here
+  velocity.profile <- list() #Leave empty if the parameter is not specified as TRUE
+  fixations <- data.frame() #Store fixations here
+
+  #Create a data frame to store filtered x and y coordinates. Retain raw x and y for comparison
+  filt.gaze <- data.frame(timestamp = gaze$timestamp,
+                          x.raw = gaze[[xcol]], y.raw = gaze[[ycol]],x = rep(NA,nrow(gaze)), y = rep(NA,nrow(gaze))
+  )
+
+
+  #Step 2.
+  #Find transitions between periods with velocities above peak threshold. Transitions are stored in the variable
+  #d where 1 is a transition to a period with velocities above threshold and -1 to a period with velocitites below.
+  velocity.vect$above.pt <- velocity.vect$velocity>peak.threshold
+  velocity.vect$d <- c(NA, diff(velocity.vect$above.pt))
+  velocity.vect$acceleration <- c(NA, diff(velocity.vect$velocity))
+  velocity.vect$deceleration <- c(NA, diff(velocity.vect$velocity)<0)
+
+  peak.onsets <- which(velocity.vect$d ==1)
+
+  message("Searching for saccades")
+
+  nonvalid.saccade.onset <- 1 #Invalid line of onset for the next saccade. Start with 1. Update this variable with each new saccade so that it matches the last one.
+  #Otherwise, periods of NAs in the data can cause the same saccade to be indentified multiple times
+
+  for (i in 1: length(peak.onsets)) {
+
+    #FIND SACCADE ONSET
+
+    # For this proposed saccade, find the corresponding onset
+    w <- which(velocity.vect$velocity[1:peak.onsets[i]] < onset.threshold &
+                 velocity.vect$deceleration[1:peak.onsets[i]] == FALSE)
+
+    if (length(w) >0) {
+      saccade.starts <- max(w)
+
+    } else {saccade.starts <- peak.onsets[i]} #Define saccade onset as the first sample > peak.threshold if the procedure fails
+
+    #CALCULATE LOCAL NOISE FACTOR (BEFORE THE ONSET OF THIS SACCADE)
+    #Calculate the local noise factor (in a period corresponding to the minimum fixation durationbefore the current saccade)
+
+    #Define the period before the onset of the saccade
+    period.length <- round(min.fixation.duration/one.sample)
+    p2 <- saccade.starts-1
+    p1 <- p2 - period.length
+
+    #If the period covers 1, start with sample 1
+    if (p1 <1) {p1 <- 1}
+    velocity.vect$velocity[p1:p2]
+
+    #Calculate local noise factor
+    m <- mean(velocity.vect$velocity[p1:p2], na.rm =T)
+    s <- sd(velocity.vect$velocity[p1:p2], na.rm =T)
+    local.noise.factor = m + 3*s
+
+
+
+    # FIND SACCADE OFFSET
+
+    #Find the last sample with velocity above peak threshold in this segment
+    w <- which(velocity.vect$d[peak.onsets[i]:nrow(velocity.vect)] == -1)
+
+    if (length(w) >0) {
+      peak.period.offset <- min(w)+peak.onsets[i] # An offset of a data segment with velocities > peak.threshold is found
+      if (i < length(peak.onsets)) { #Check if the offset comes after a new onset (in this case, the actual offset is missing)
+        if (peak.period.offset > peak.onsets[i+1]) {
+          peak.period.offset <- NA
+        }
+      }
+    } else {peak.period.offset <- NA}
+
+
+    #Define the threshold for saccade offset as a weighted sum of local noise factor and global noise factor (onset threshold)
+    offset.threshold <- (alpha*onset.threshold) + (beta*local.noise.factor)
+
+    if (!is.na(peak.period.offset)) {
+
+      w <- which(velocity.vect$velocity[peak.period.offset:nrow(velocity.vect)] < offset.threshold &
+                   velocity.vect$deceleration[peak.period.offset:nrow(velocity.vect)] == TRUE)
+
+      if(length(w) >0) { #Found a saccade offset defined by velocity < threshold and deceleration
+
+        saccade.ends <- min(w, na.rm =TRUE) + peak.period.offset}
+
+      else { #Unable to define saccade offset as a combination of velocity < threshold and deceleration. Try without requiring a deceleration.
+        w <- which(velocity.vect$velocity[saccade.starts:nrow(velocity.vect)] < offset.threshold)
+        if(length(w) >0) {saccade.ends <- min(w,na.rm =TRUE) + saccade.starts}
+
+
+      }
+
+
+      x.onset <- gaze[saccade.starts, xcol]
+      y.onset <- gaze[saccade.starts, ycol]
+      x.offset <- gaze[saccade.ends, xcol]
+      y.offset <- gaze[saccade.ends, ycol]
+      duration <- gaze$timestamp[saccade.ends] - gaze$timestamp[saccade.starts]
+      onset <- gaze$timestamp[saccade.starts]
+
+      #Calculate the Euclidean distance between onset and offset (amplitude)
+      amplitude <- sqrt((x.onset - x.offset)^2 + (y.onset-y.offset)^2)
+      #Normalize to degrees
+      amplitude <- amplitude/one_degree
+
+
+      if (nrow(saccades)>0) {nonvalid.saccade.onset <- saccades$onset[nrow(saccades)]} #Discard this saccade if it has already been stored
+
+      if (duration > min.saccade.duration & onset != nonvalid.saccade.onset) {
+        #Summarize saccades
+        saccades <- rbind(saccades,
+                          data.frame(
+                            onset = onset,
+                            x.onset = x.onset,
+                            y.onset = y.onset,
+                            offset = gaze$timestamp[saccade.ends],
+                            x.offset = x.offset,
+                            y.offset = y.offset,
+                            duration = duration,
+                            amplitude = amplitude,
+                            peak.velocity = max(velocity.vect$velocity[saccade.starts:saccade.ends], na.rm = T),
+                            missing.samples = mean(is.na(gaze[saccade.starts:saccade.ends, xcol])),
+                            firstline = saccade.starts,
+                            lastline = saccade.ends
+                          ))
+
+
+
+        #Save velocity profiles if this is specified in the input
+        if (save.velocity.profiles == TRUE) {
+          saccade.nr <- nrow(saccades)
+          velocity.profile[[saccade.nr]] <- velocity.vect$velocity[saccade.starts:saccade.ends]
+
+        }
+
+
+      }
+
+
+
+    }
+  }
+
+  #IDENTIFY FIXATIONS
+  message("Searching for fixations")
+
+  if (nrow(saccades) == 0) {warning("No saccades detected. Check the format of your data! The function will end")}
+
+
+  for (i in 1: (nrow(saccades)-1)) {
+
+    fixation.candidate.starts <- saccades$lastline[i]+1
+    fixation.candidate.stops <- saccades$firstline[i+1]-1
+
+    this.fixation <- summarize_fixation_metrics(fixation.candidate.starts, fixation.candidate.stops,
+                                                             x = gaze[[xcol]], y = gaze[[ycol]], timestamp = gaze$timestamp, one_degree = one_degree)
+
+    fixations <- rbind(fixations, this.fixation)
+
+
+  }
+
+
+  #Step 3: Loop through fixation candidates and merge adjacent fixations
+  #Merge adjacent fixations
+  if (trim.fixations == TRUE){
+
+    fixations <- trim_fixations(fixations, filt.gaze, xcol = xcol, ycol = ycol,threshold = trim.dispersion.threshold)
+  }
+
+
+
+  if (distance.threshold >0){
+    fixations <- merge_adjacent_fixations(fixations, filt.gaze, distance.threshold = distance.threshold, ms.threshold = merge.ms.threshold, one_degree = one_degree)
+  }
+
+  fixations <- dplyr::filter(fixations, .data$duration >= min.fixation.duration)
+  fixations <- dplyr::filter(fixations, .data$missing.samples < missing.samples.threshold)
+
+  #Save filtered x and y coordinates for each sample
+  for (i in 1: dim(fixations)[1]){
+    filt.gaze$x[fixations$firstline[i]: fixations$lastline[i]] <- fixations$x[i]
+    filt.gaze$y[fixations$firstline[i]: fixations$lastline[i]] <- fixations$y[i]
+
+
+  }
+
+  fixations$fixation.algorithm <- "adaptive"
+  fixations$threshold <- paste0(round(peak.threshold), " deg. (peak); ", round(onset.threshold), " deg. (onset)")
+
+
+  if (save.velocity.profiles == TRUE) {saccades$velocity.profile <- velocity.profile}
+
+  out <- list()
+  out[["saccades"]] <- saccades
+  out[["fixations"]] <-fixations
+  out[["filt.gaze"]] <- filt.gaze
+
+
+  return(out)
+}
+
+
+#' Summarize fixation statistics
+#' @description
+#' Summarize descriptives for a fixation defined by onset and offset rows in the data. Used internally by event classification functions.
+#' @param x X coordinates
+#' @param y Y coordinates
+#' @param one_degree one degree of the visual field in the unit of the x and y coordinates in the data. Typically pixels or degrees.
+#' @param timestamp Timestamps in milliseconds
+#' @param fixation.candidate.starts First row in the data included in the fixation
+#' @param fixation.candidate.stops Last row in the data included in the fixation
+#' @return data frame with fixation descriptives
+
+summarize_fixation_metrics <- function (fixation.candidate.starts, fixation.candidate.stops, x,y, timestamp, one_degree = 40) {
+  #Calculate the center of the detected fixation
+  fixation.candidate.x <- mean(x[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
+  fixation.candidate.y <- mean(y[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
+
+
+  #Calculate the RMS of the detected fixation from fixation center
+  xdiff.center <- (x[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.x)
+  ydiff.center <- (y[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.y)
+  dist.from.center <- sqrt(ydiff.center^2+xdiff.center^2)
+
+  rms.from.center <- sqrt(mean(dist.from.center^2))/one_degree
+
+
+  #Calculate the precision RMS
+  xdiff <- diff(x[fixation.candidate.starts:fixation.candidate.stops])
+  ydiff <- diff(y[fixation.candidate.starts:fixation.candidate.stops])
+  s2s.distance <- sqrt(ydiff^2 + xdiff^2)
+  rms_deviation <- sqrt(mean(s2s.distance^2))
+  rms <- round(mean(rms_deviation,na.rm =TRUE)/one_degree,3)
+
+
+
+  #av.diff <- rowMeans(dplyr::select(dist.data, xdiff, ydiff))
+
+
+
+  fixation <-  data.frame(
+    x = fixation.candidate.x,
+    y = fixation.candidate.y,
+    duration = timestamp[fixation.candidate.stops] - timestamp[fixation.candidate.starts],
+    onset = timestamp[fixation.candidate.starts],
+    offset=  timestamp[fixation.candidate.stops],
+    missing.samples = mean(is.na(x[fixation.candidate.starts:fixation.candidate.stops])),
+    rmsd = rms,
+    rms.from.center = rms.from.center,
+    firstline = fixation.candidate.starts,
+    lastline = fixation.candidate.stops
+  )
+
+  return(fixation)
+}
+
+
+
+
+
+#' Adjust the onset and offset of fixations to avoid misclassification of saccade samples as belonging to fixations
+#' @description
+#' Shrink the period classified as a fixation by removing samples close to the onset and offset with excessive differences from the fixation center.
+#' This reduces the risk that samples belonging to saccades are misclassified as belonging to a fixation. The function is used internally by other functions
+#' and should typically not be called outside of them.
+#'
+#' adjust_fixation_timing starts by calculating the median (MD) and MAD of the absolute distances from the fixation center of all included samples. The fixation onset
+#' is shifted forwards to the first sample with a distance to the fixation center under t* MAD + MD where t is specified by the input parameter threshold.
+#' Analogously, fixation offset is shifted backwards to the last included sample with distance to the fixation center under t* MAD + MD
+#'
+#' @param x X coordinates
+#' @param y Y coordinates
+#' @param fixation.candidate.starts First row in the data included in the fixation
+#' @param fixation.candidate.stops Last row in the data included in the fixation
+#' @param threshold Threshold for highest accepted distance from fixation center in MADs from the median. Default 3. If NA, just remove NAs
+#' at the onset and offest of fixation but ignore deviations from fixation center
+#' @return data frame with adjusted first and last row of the fixation
+
+adjust_fixation_timing <- function (fixation.candidate.starts, fixation.candidate.stops, x,y, threshold =3) {
+
+  fixation.candidate.x <- mean(x[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
+  fixation.candidate.y <- mean(y[fixation.candidate.starts: fixation.candidate.stops],na.rm = TRUE)
+
+
+  #Calculate the RMS of the detected fixation
+  xdiff <- (x[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.x)^2
+  ydiff <- (y[fixation.candidate.starts:fixation.candidate.stops] - fixation.candidate.y)^2
+
+
+  #Calculate dthe distance from center of the proposed fixation. Absoulute values
+  dist.from.center <- rowMeans(data.frame(xdiff = sqrt(xdiff),
+                                          ydiff = sqrt(ydiff)))
+
+
+  #Calculate median and MAD of absolute distance from center of fixation for each sample
+  md<- median(dist.from.center,na.rm =T)
+  dist.mad <- mad(dist.from.center, na.rm =T)
+
+  #First and last sample of fixation must have a lower distance from center of fixation than this value
+
+  if (!is.na(threshold)) {
+    lim.value <- md + threshold*dist.mad
+    exit <- FALSE
+    #Start at the first sample and calculate a new adjusted starting
+
+    i <- 1
+    while (!exit) {
+
+      if (is.na(dist.from.center[i])) {i <- i +1
+      } else if (!is.na(dist.from.center[i]) & dist.from.center[i] > lim.value) {i <- i +1
+      } else if (i >= length(dist.from.center)){exit <- TRUE
+      } else if (!is.na(dist.from.center[i]) & dist.from.center[i] <= lim.value) {exit <- TRUE}
+
+    }
+    new.startpoint <- i
+
+
+
+    i <- length(dist.from.center) #Start at last sample and walk backwards
+    exit <- FALSE
+    while (!exit) {
+      if (is.na(dist.from.center[i])) {i <- i-1
+      } else if (!is.na(dist.from.center[i]) & dist.from.center[i] > lim.value) {i <- i-1
+      } else if (i <= new.startpoint){exit <- TRUE
+      } else if (!is.na(dist.from.center[i]) & dist.from.center[i] <= lim.value) {exit <- TRUE}
+
+    }
+    new.stop <- i
+
+  } else if (is.na(threshold)){ #No threshold value specified. Just shift onset and offset to include first/last non-NA
+    if (sum(!is.na(xdiff)) >0) {new.startpoint <- min(which(!is.na(xdiff)))
+    new.stop <- max(which(!is.na(xdiff)))
+    }
+
+
+  }
+
+
+  new.index <- data.frame(firstline = fixation.candidate.starts + new.startpoint,
+                          lastline = fixation.candidate.starts + new.stop)
+
+  return(new.index)
+}
+
+
+
+
+#' Adjust the onset and offset of fixations to avoid misclassification of saccade samples as belonging to fixations
+#' @description
+#'
+#' Adjust the onset and offset of all fixations in a data frame (The function adjust_fixation_timing does this for a single fixation).
+#'
+#' Shrink the period classified as a fixation by removing samples at the onset and offset with excessive differences from the fixation center or which are missing (X or Y are NA).
+#' This reduces the risk that samples belonging to saccades are misclassified as belonging to a fixation. Please note that this procedure is included by default in the
+#' event classification algorithm 'alogorithm_i2mc' (see documentation for this function for details)
+#'
+#' The procedure starts by calculating the median (MD) and MAD of the absolute distances from the fixation center of all included samples. The fixation onset
+#' is shifted forwards to the first sample with a distance to the fixation center under t* MAD + MD where t is specified by the input parameter threshold.
+#' Analogously, fixation offset is shifted backwards to the last included sample with distance to the fixation center under t* MAD + MD
+#'
+#' trim_fixations will look for variables called 'fixation.algorithm' and 'threshold' in the data frame 'fixations'. These columns are produced by kollaR event classification
+#' algorithms. If they are found, they will be transfered to the output data frame.
+#'
+#'
+#' @param fixations Data frame with fixations to trim. The data frame must include the variables 'firstline' (index of first row in the sample-by-sample data belonging to
+#' each fixation), 'lastline' (index of last row in the sample-by-sample data belonging to each fixation). The function works with the fixation output from kollaR event classification algorithms
+#' the fixation)
+#' @param gaze Data frame with sample-to-sample data. Must include timestamps in milliseconds specified by the variable timestamp, and X and Y coordinates specified by the
+#' parameters 'xcol' and 'ycol'.
+#' @param xcol Variable in the sample-to-sample data frame where X coordinates (before event classification) are found
+#' @param ycol Variable in the sample-to-sample data frame where X coordinates (before event classification) are found
+#' @param threshold Threshold for highest accepted distance from fixation center in MADs from the median. Default 3. If NA, just remove NAs
+#' at the onset and offest of fixation but ignore deviations from fixation center
+#' @param one_degree One degree of the visual field in the units of the X and Y coordinates (which is typically pixels or degrees of the visual field)
+#' @return data frame with fixations after adjustment of onset and offset
+
+
+
+trim_fixations <- function(fixations, gaze, xcol ="x.raw", ycol = "y.raw", threshold = 3, one_degree = 40){
+
+  trimmed.fixations <- data.frame()
+  if (length(gaze[[xcol]]) == 0 | length(gaze[[ycol]]) == 0) {
+    message("Warning! No X and/or Y coordinates found in the sample level data. Did you misspecify the variable names
+            in the parameters xcol and/or ycol?")
+  }
+
+  trimmed.fixations <- data.frame()
+  for (i in 1: nrow(fixations)) {
+
+    #Find trimmed on- and offsets
+    new.on.off <- adjust_fixation_timing(fixations$firstline[i], fixations$lastline[i], x = gaze[[xcol]], y = gaze[[ycol]],
+                                          threshold = threshold)
+
+    #Add this fixation to the data frame
+    trimmed.fixations <- rbind(trimmed.fixations,
+                               summarize_fixation_metrics(fixation.candidate.starts = new.on.off$firstline, fixation.candidate.stops = new.on.off$lastline, x = gaze[[xcol]],
+                                                          y = gaze[[ycol]], timestamp = gaze$timestamp, one_degree = one_degree)
+
+    )
+
+  }
+
+  if ("fixation.algorithm" %in% names(fixations)) {
+    trimmed.fixations$fixation.algorithm <- fixations$fixation.algorithm
+  } else {trimmed.fixations$fixation.algorithm <- "unknown"}
+
+  if ("threshold" %in% names(fixations)) {
+    trimmed.fixations$threshold <- fixations$threshold
+  } else {trimmed.fixations$threshold <- "unknown"}
+
+  return(trimmed.fixations)
+
+}

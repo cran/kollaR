@@ -7,14 +7,16 @@
 \format{
 A data frame
 \describe{
-  \item{x}{fixation filtered gaze position x}
-  \item{y}{fixation filtered gaze position y}
+  \item{x}{fixation position x}
+  \item{y}{fixation position y}
   \item{duration}{duration of fixation in milliseconds}
   \item{onset}{onset of fixation in milliseconds}
   \item{offset}{offset of fixation in milliseconds}
-  \item{rmsd}{Root mean square deviation of included samples from the centroid of the fixation}
-  \item{fixation.filter}{Name of the fixation filter algorithm }
-  \item{threshold}{Threshold setting for the fixation filter algorithm}
+  \item{rmsd}{Sample-to-sample root mean square deviation of all samples}
+  \item{rms.from.center}{Root means square deviation of all included samples from the centroid of the fixation}
+  \item{missing.samples}{proportion of missing samples}
+  \item{fixation.algorithm}{Name of the fixation filter algorithm }
+  \item{threshold}{Threshold setting for the fixation classification algorithm}
   \item{id}{Participant id}}
 }
 \source{
